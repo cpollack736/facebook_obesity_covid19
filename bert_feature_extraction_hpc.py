@@ -1,5 +1,6 @@
 # Bring in Modules
 import pandas as pd
+import time
 from sentence_transformers import SentenceTransformer
 
 # Bring in Data
