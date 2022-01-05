@@ -18,6 +18,10 @@ library(magrittr)
 library(ggsci)
 library(CausalImpact)
 library(reshape2)
+library(forecast)
+library(zoo)
+library(astsa)
+library(tseries)
 ```
 
 # Bring in Data
@@ -325,6 +329,138 @@ impact_trump <- CausalImpact(dat,
 plot(impact_trump)
 summary(impact_trump) #Significant difference after Trump gets COVID-19 
 ```
+
+# ARIMA
+## Function
+```{r}
+## Note: If adf.test is not significant, that means data needs to be differenced and this function re-run with difference = TRUE. This function does not difference the data. 
+arima_its <- function(its_date, 
+                      dat, 
+                      post_or_interactions = c("post", "interactions"),
+                      difference = FALSE) {
+  first_date = as.Date(its_date) - 30
+  last_date = as.Date(its_date) + 30
+  
+  if (post_or_interactions == "post") {
+    dat_filtered <- dat %>%
+      dplyr::filter(post_created_date >= first_date &
+                    post_created_date <= last_date)
+  }
+  
+  date_seq <- seq.Date(from = as.Date(first_date),
+                         length.out = nrow(dat_filtered),
+                         by = 1)
+
+  if (post_or_interactions == "post") {
+    dat_ts <- ts(as.numeric(dat_filtered$posts_per_day), 
+                                   start = first_date,
+                                   frequency = 365)
+  }
+
+  print(adf.test(dat_ts)) #Stationary data if significant (we want stationary)
+
+## Step Parameter
+  dat_step <- ifelse(date_seq >= its_date, 1, 0)
+
+## Ramp Parameter
+  dat_ramp <- append(rep(0,
+                         length(which(dat_step == 0))),
+                     seq(1,
+                         length(which(dat_step == 1)),
+                         1))
+  
+## Pulse Parameter
+  dat_pulse <- ifelse(date_seq == its_date, 1, 0)
+  
+  if (difference == TRUE) {
+      model_func <- auto.arima(dat_ts,
+                               d = 1, #Considers differencing data
+                               xreg = cbind(dat_pulse,
+                                            dat_step,
+                                            dat_ramp),
+                               trace = TRUE)
+  } else {
+      model_func <- auto.arima(dat_ts,
+                               xreg = cbind(dat_pulse,
+                                            dat_step,
+                                            dat_ramp),
+                               trace = TRUE)
+  }
+
+  print(Box.test(model_func$residuals, 
+           type = "Ljung-Box")) 
+
+  print(summary(model_func))
+  print(confint(model_func))
+  print((1-pnorm(abs(model_func$coef)/sqrt(diag(model_func$var.coef))))*2)
+}
+```
+
+## Running All Data As-Is
+```{r}
+list_of_its_dates <- c(as.Date("2020-01-20"), as.Date("2020-03-11"), as.Date("2020-05-19"), as.Date("2020-10-02"))
+for (d in list_of_its_dates) {
+  print(as.Date(d))
+  print("obesity")
+  arima_its(d, obesity_count_per_day, "post")
+  print("**********")
+  print("health control")
+  arima_its(d, headaches_count_per_day, "post")
+  print("**********")
+  print("non-health control")
+  arima_its(d, clarinet_count_per_day, "post")
+  print("**********")
+}
+```
+
+## Differencing Data as Needed and Rerunning
+- Health control 01/20
+- Non-health control 01/20
+- Health control 03/11
+- Obesity 05/19
+```{r}
+arima_its(as.Date("2020-01-20"), headaches_count_per_day, "post", TRUE)
+arima_its(as.Date("2020-01-20"), clarinet_count_per_day, "post", TRUE)
+arima_its(as.Date("2020-03-11"), headaches_count_per_day, "post", TRUE)
+arima_its(as.Date("2020-05-19"), obesity_count_per_day, "post", TRUE)
+```
+
+## Plotting
+```{r}
+headaches_count_per_day %>%
+  dplyr::filter(post_created_date >= as.Date("2020-03-11") - 30 &
+                  post_created_date <= as.Date("2020-03-11") + 30) %>%
+  ggplot(aes(x = post_created_date,
+             y = as.numeric(posts_per_day))) +
+  geom_line() +
+  geom_vline(xintercept = as.Date("2020-03-11")) + 
+  theme_classic()
+
+obesity_count_per_day %>%
+  dplyr::filter(post_created_date >= as.Date("2020-05-19") - 30 &
+                  post_created_date <= as.Date("2020-10-02") + 30) %>%
+  mutate(color_plot = case_when(
+    post_created_date <= as.Date("2020-05-19") ~ "Period 1",
+    post_created_date >= as.Date("2020-10-02") ~ "Period 3",
+    TRUE ~ "Period 2"
+  )) %>%
+  ggplot(aes(x = post_created_date,
+             y = as.numeric(posts_per_day),
+             color = color_plot)) +
+  geom_line(size = 1) +
+  geom_vline(xintercept = c(as.Date("2020-05-19"),
+                            as.Date("2020-10-02")),
+             linetype = "dashed",
+             size = 0.75) + 
+  theme_classic() +
+  theme(legend.position = "none") + 
+  scale_x_date(date_labels = "%b",
+               date_breaks = "1 month") +
+  labs(x = "Month",
+       y = "Posts Per Day",
+       title = "Obesity Posts per Day on Facebook\nApril 19, 2020 - November 1, 2020")
+```
+
 
 # Interactions per Day
 ```{r}
