@@ -94,297 +94,105 @@ ggsave("211214_change_in_posts_over_time_facebook.tiff",
        height = 4.51)
 ```
 
-# BSTSM for Obesity vs. Health Comparator - # Posts
-## January 20th, 2020 (First US Case)
-```{r}
-headaches_count_per_day <- rbind(headaches_count_per_day,
-                                 c("2020-01-01", 0, "Health Comparator"))
-
-headaches_count_per_day %<>%
-  arrange(post_created_date)
-
-obesity_headaches_count_per_day_date_restricted <- as.data.frame(cbind(filter(obesity_count_per_day,
-                                                                post_created_date >= as.Date("2019-12-20") &
-                                                                  post_created_date <= as.Date("2020-02-21"))$posts_per_day,
-                                                         filter(headaches_count_per_day,
-                                                                post_created_date >= as.Date("2019-12-20") &
-                                                                  post_created_date <= as.Date("2020-02-21"))$posts_per_day))
-                                                         
-colnames(obesity_headaches_count_per_day_date_restricted) <- c("y", "x1")
-obesity_headaches_count_per_day_date_restricted$y <- as.numeric(obesity_headaches_count_per_day_date_restricted$y)
-obesity_headaches_count_per_day_date_restricted$x1 <- as.numeric(obesity_headaches_count_per_day_date_restricted$x1)
-
-dat <- zoo(obesity_headaches_count_per_day_date_restricted,
-           seq.Date(as.Date("2019-12-20"),
-                    as.Date("2020-02-21"),
-                    "day"))
-
-pre_period <- as.Date(c("2019-12-20", "2020-01-20"))
-post_period <- as.Date(c("2020-01-21", "2020-02-21"))
-impact <- CausalImpact(dat, 
-                       pre_period, 
-                       post_period)
-plot(impact)
-summary(impact) #No difference after Jan. 20
-```
-
-## March 11, 2020 (WHO Pandemic)
-```{r}
-obesity_headaches_count_per_day_date_restricted_who <- as.data.frame(cbind(filter(obesity_count_per_day,
-                                                                post_created_date >= as.Date("2020-02-11") &
-                                                                  post_created_date <= as.Date("2020-04-12"))$posts_per_day,
-                                                         filter(headaches_count_per_day,
-                                                                post_created_date >= as.Date("2020-02-11") &
-                                                                  post_created_date <= as.Date("2020-04-12"))$posts_per_day))
-                                                         
-colnames(obesity_headaches_count_per_day_date_restricted_who) <- c("y", "x1")
-obesity_headaches_count_per_day_date_restricted_who$y <- as.numeric(obesity_headaches_count_per_day_date_restricted_who$y)
-obesity_headaches_count_per_day_date_restricted_who$x1 <- as.numeric(obesity_headaches_count_per_day_date_restricted_who$x1)
-
-dat <- zoo(obesity_headaches_count_per_day_date_restricted_who,
-           seq.Date(as.Date("2020-02-11"),
-                    as.Date("2020-04-12"),
-                    "day"))
-
-pre_period <- as.Date(c("2020-02-11", "2020-03-11"))
-post_period <- as.Date(c("2020-03-12", "2020-04-12"))
-impact_who <- CausalImpact(dat, 
-                       pre_period, 
-                       post_period)
-plot(impact_who)
-summary(impact_who) #No significant difference
-```
-
-## May 19th, 2020 (Obesity linked with COVID-19)
-```{r}
-obesity_headaches_count_per_day_date_restricted_obesity_linked <- as.data.frame(cbind(filter(obesity_count_per_day,
-                                                                post_created_date >= as.Date("2020-04-19") &
-                                                                  post_created_date <= as.Date("2020-06-20"))$posts_per_day,
-                                                         filter(headaches_count_per_day,
-                                                                post_created_date >= as.Date("2020-04-19") &
-                                                                  post_created_date <= as.Date("2020-06-20"))$posts_per_day))
-                                                         
-colnames(obesity_headaches_count_per_day_date_restricted_obesity_linked) <- c("y", "x1")
-obesity_headaches_count_per_day_date_restricted_obesity_linked$y <- as.numeric(obesity_headaches_count_per_day_date_restricted_obesity_linked$y)
-obesity_headaches_count_per_day_date_restricted_obesity_linked$x1 <- as.numeric(obesity_headaches_count_per_day_date_restricted_obesity_linked$x1)
-
-dat <- zoo(obesity_headaches_count_per_day_date_restricted_obesity_linked,
-           seq.Date(as.Date("2020-04-19"),
-                    as.Date("2020-06-20"),
-                    "day"))
-
-pre_period <- as.Date(c("2020-04-19", "2020-05-19"))
-post_period <- as.Date(c("2020-05-20", "2020-06-20"))
-impact_obesity_linked <- CausalImpact(dat, 
-                       pre_period, 
-                       post_period)
-plot(impact_obesity_linked)
-summary(impact_obesity_linked) #No significant difference after obesity linked
-```
-
-## October 2, 2020 (Trump gets COVID-19)
-```{r}
-headaches_count_per_day <- rbind(headaches_count_per_day,
-                                 c("2020-11-01", 0, "Health Comparator"))
-
-headaches_count_per_day %<>%
-  arrange(post_created_date)
-
-obesity_headaches_count_per_day_date_restricted_trump <- as.data.frame(cbind(filter(obesity_count_per_day,
-                                                                post_created_date >= as.Date("2020-09-02") &
-                                                                  post_created_date <= as.Date("2020-11-03"))$posts_per_day,
-                                                         filter(headaches_count_per_day,
-                                                                post_created_date >= as.Date("2020-09-02") &
-                                                                  post_created_date <= as.Date("2020-11-03"))$posts_per_day))
-                                                         
-colnames(obesity_headaches_count_per_day_date_restricted_trump) <- c("y", "x1")
-obesity_headaches_count_per_day_date_restricted_trump$y <- as.numeric(obesity_headaches_count_per_day_date_restricted_trump$y)
-obesity_headaches_count_per_day_date_restricted_trump$x1 <- as.numeric(obesity_headaches_count_per_day_date_restricted_trump$x1)
-
-dat <- zoo(obesity_headaches_count_per_day_date_restricted_trump,
-           seq.Date(as.Date("2020-09-02"),
-                    as.Date("2020-11-03"),
-                    "day"))
-
-pre_period <- as.Date(c("2020-09-02", "2020-10-02"))
-post_period <- as.Date(c("2020-10-03", "2020-11-03"))
-impact_trump <- CausalImpact(dat, 
-                       pre_period, 
-                       post_period)
-plot(impact_trump)
-summary(impact_trump) #No significant difference after Trump gets COVID-19 
-```
-
-# BSTSM for Obesity vs. Non-Health Comparator - # Posts
-## January 20th, 2020 (First US Case)
-```{r}
-obesity_clarinet_count_per_day_date_restricted <- as.data.frame(cbind(filter(obesity_count_per_day,
-                                                                post_created_date >= as.Date("2019-12-20") &
-                                                                  post_created_date <= as.Date("2020-02-21"))$posts_per_day,
-                                                         filter(clarinet_count_per_day,
-                                                                post_created_date >= as.Date("2019-12-20") &
-                                                                  post_created_date <= as.Date("2020-02-21"))$posts_per_day))
-                                                         
-colnames(obesity_clarinet_count_per_day_date_restricted) <- c("y", "x1")
-obesity_clarinet_count_per_day_date_restricted$y <- as.numeric(obesity_clarinet_count_per_day_date_restricted$y)
-obesity_clarinet_count_per_day_date_restricted$x1 <- as.numeric(obesity_clarinet_count_per_day_date_restricted$x1)
-
-dat <- zoo(obesity_clarinet_count_per_day_date_restricted,
-           seq.Date(as.Date("2019-12-20"),
-                    as.Date("2020-02-21"),
-                    "day"))
-
-pre_period <- as.Date(c("2019-12-20", "2020-01-20"))
-post_period <- as.Date(c("2020-01-21", "2020-02-21"))
-impact <- CausalImpact(dat, 
-                       pre_period, 
-                       post_period)
-plot(impact)
-summary(impact) #No difference after Jan. 20
-```
-
-## March 11, 2020 (WHO Pandemic)
-```{r}
-obesity_count_per_day <- rbind(obesity_count_per_day,
-                                 c("2020-04-01", 0, "Obesity"))
-
-obesity_count_per_day %<>%
-  arrange(post_created_date)
-
-obesity_clarinet_count_per_day_date_restricted_who <- as.data.frame(cbind(filter(obesity_count_per_day,
-                                                                post_created_date >= as.Date("2020-02-11") &
-                                                                  post_created_date <= as.Date("2020-04-12"))$posts_per_day,
-                                                         filter(clarinet_count_per_day,
-                                                                post_created_date >= as.Date("2020-02-11") &
-                                                                  post_created_date <= as.Date("2020-04-12"))$posts_per_day))
-                                                         
-colnames(obesity_clarinet_count_per_day_date_restricted_who) <- c("y", "x1")
-obesity_clarinet_count_per_day_date_restricted_who$y <- as.numeric(obesity_clarinet_count_per_day_date_restricted_who$y)
-obesity_clarinet_count_per_day_date_restricted_who$x1 <- as.numeric(obesity_clarinet_count_per_day_date_restricted_who$x1)
-
-dat <- zoo(obesity_clarinet_count_per_day_date_restricted_who,
-           seq.Date(as.Date("2020-02-11"),
-                    as.Date("2020-04-12"),
-                    "day"))
-
-pre_period <- as.Date(c("2020-02-11", "2020-03-11"))
-post_period <- as.Date(c("2020-03-12", "2020-04-12"))
-impact_who <- CausalImpact(dat, 
-                       pre_period, 
-                       post_period)
-plot(impact_who)
-summary(impact_who) #Significant difference with non-health comparator
-```
-
-## May 19th, 2020 (Obesity linked with COVID-19)
-```{r}
-obesity_clarinet_count_per_day_date_restricted_obesity_linked <- as.data.frame(cbind(filter(obesity_count_per_day,
-                                                                post_created_date >= as.Date("2020-04-19") &
-                                                                  post_created_date <= as.Date("2020-06-20"))$posts_per_day,
-                                                         filter(clarinet_count_per_day,
-                                                                post_created_date >= as.Date("2020-04-19") &
-                                                                  post_created_date <= as.Date("2020-06-20"))$posts_per_day))
-                                                         
-colnames(obesity_clarinet_count_per_day_date_restricted_obesity_linked) <- c("y", "x1")
-obesity_clarinet_count_per_day_date_restricted_obesity_linked$y <- as.numeric(obesity_clarinet_count_per_day_date_restricted_obesity_linked$y)
-obesity_clarinet_count_per_day_date_restricted_obesity_linked$x1 <- as.numeric(obesity_clarinet_count_per_day_date_restricted_obesity_linked$x1)
-
-dat <- zoo(obesity_clarinet_count_per_day_date_restricted_obesity_linked,
-           seq.Date(as.Date("2020-04-19"),
-                    as.Date("2020-06-20"),
-                    "day"))
-
-pre_period <- as.Date(c("2020-04-19", "2020-05-19"))
-post_period <- as.Date(c("2020-05-20", "2020-06-20"))
-impact_obesity_linked <- CausalImpact(dat, 
-                       pre_period, 
-                       post_period)
-plot(impact_obesity_linked)
-summary(impact_obesity_linked) #No significant difference after obesity linked
-```
-
-## October 2, 2020 (Trump gets COVID-19)
-```{r}
-obesity_clarinet_count_per_day_date_restricted_trump <- as.data.frame(cbind(filter(obesity_count_per_day,
-                                                                post_created_date >= as.Date("2020-09-02") &
-                                                                  post_created_date <= as.Date("2020-11-03"))$posts_per_day,
-                                                         filter(clarinet_count_per_day,
-                                                                post_created_date >= as.Date("2020-09-02") &
-                                                                  post_created_date <= as.Date("2020-11-03"))$posts_per_day))
-                                                         
-colnames(obesity_clarinet_count_per_day_date_restricted_trump) <- c("y", "x1")
-obesity_clarinet_count_per_day_date_restricted_trump$y <- as.numeric(obesity_clarinet_count_per_day_date_restricted_trump$y)
-obesity_clarinet_count_per_day_date_restricted_trump$x1 <- as.numeric(obesity_clarinet_count_per_day_date_restricted_trump$x1)
-
-dat <- zoo(obesity_clarinet_count_per_day_date_restricted_trump,
-           seq.Date(as.Date("2020-09-02"),
-                    as.Date("2020-11-03"),
-                    "day"))
-
-pre_period <- as.Date(c("2020-09-02", "2020-10-02"))
-post_period <- as.Date(c("2020-10-03", "2020-11-03"))
-impact_trump <- CausalImpact(dat, 
-                       pre_period, 
-                       post_period)
-plot(impact_trump)
-summary(impact_trump) #Significant difference after Trump gets COVID-19 
-```
-
 # ARIMA
-## Function
+## Function: ADF Test Only
 ```{r}
-## Note: If adf.test is not significant, that means data needs to be differenced and this function re-run with difference = TRUE. This function does not difference the data. 
-arima_its <- function(its_date, 
+arima_its_adf_test <- function(its_date, 
                       dat, 
-                      post_or_interactions = c("post", "interactions"),
-                      difference = FALSE) {
+                      post_or_interaction = "post") {
   first_date = as.Date(its_date) - 30
   last_date = as.Date(its_date) + 30
   
-  if (post_or_interactions == "post") {
-    dat_filtered <- dat %>%
+  dat_filtered <- dat %>%
       dplyr::filter(post_created_date >= first_date &
                     post_created_date <= last_date)
-  }
   
   date_seq <- seq.Date(from = as.Date(first_date),
                          length.out = nrow(dat_filtered),
                          by = 1)
 
-  if (post_or_interactions == "post") {
-    dat_ts <- ts(as.numeric(dat_filtered$posts_per_day), 
+  if (post_or_interaction == "post") {
+      dat_ts <- ts(as.numeric(dat_filtered$posts_per_day), 
+                              start = first_date,
+                              frequency = 365)
+
+  } else {
+      dat_ts <- ts(as.numeric(dat_filtered$interactions_per_day), 
                                    start = first_date,
                                    frequency = 365)
   }
+  
+  print(adf.test(dat_ts)) #Stationary data if significant (we want stationary)
+}
+```
 
+## Function: ARIMA- ITS
+```{r}
+## Note: If adf.test is not significant, that means data needs to be differenced and this function re-run with difference = TRUE. This function does not difference the data. 
+arima_its <- function(its_date, 
+                      dat, 
+                      difference = FALSE,
+                      pulse = FALSE,
+                      step = FALSE,
+                      ramp = FALSE,
+                      post_or_interaction = "post") {
+  print(difference)
+  first_date = as.Date(its_date) - 30
+  last_date = as.Date(its_date) + 30
+  
+  dat_filtered <- dat %>%
+      dplyr::filter(post_created_date >= first_date &
+                    post_created_date <= last_date)
+  
+  date_seq <- seq.Date(from = as.Date(first_date),
+                         length.out = nrow(dat_filtered),
+                         by = 1)
+
+  if (post_or_interaction == "post") {
+      dat_ts <- ts(as.numeric(dat_filtered$posts_per_day), 
+                              start = first_date,
+                              frequency = 365)
+
+  } else {
+      dat_ts <- ts(as.numeric(dat_filtered$interactions_per_day), 
+                                   start = first_date,
+                                   frequency = 365)
+  }
+  
   print(adf.test(dat_ts)) #Stationary data if significant (we want stationary)
 
 ## Step Parameter
-  dat_step <- ifelse(date_seq >= its_date, 1, 0)
+  transfer <- c()
+  if (step == TRUE) {
+    dat_step <- ifelse(date_seq >= its_date, 1, 0)
+    transfer <- cbind(transfer, dat_step)
+  }
 
 ## Ramp Parameter
-  dat_ramp <- append(rep(0,
+  if (ramp == TRUE) {
+    dat_step <- ifelse(date_seq >= its_date, 1, 0)
+    dat_ramp <- append(rep(0,
                          length(which(dat_step == 0))),
                      seq(1,
                          length(which(dat_step == 1)),
                          1))
-  
+    transfer <- cbind(transfer, dat_ramp)
+  }
 ## Pulse Parameter
-  dat_pulse <- ifelse(date_seq == its_date, 1, 0)
-  
+  if (pulse == TRUE) {
+    dat_pulse <- ifelse(date_seq == its_date, 1, 0)
+    transfer <- cbind(transfer, dat_pulse)
+  }
+
   if (difference == TRUE) {
+    print("Running with differencing")
       model_func <- auto.arima(dat_ts,
                                d = 1, #Considers differencing data
-                               xreg = cbind(dat_pulse,
-                                            dat_step,
-                                            dat_ramp),
-                               trace = TRUE)
+                               xreg = transfer)
   } else {
+    print("Running with no differencing")
       model_func <- auto.arima(dat_ts,
-                               xreg = cbind(dat_pulse,
-                                            dat_step,
-                                            dat_ramp),
-                               trace = TRUE)
+                               xreg = transfer)
   }
 
   print(Box.test(model_func$residuals, 
@@ -394,35 +202,6 @@ arima_its <- function(its_date,
   print(confint(model_func))
   print((1-pnorm(abs(model_func$coef)/sqrt(diag(model_func$var.coef))))*2)
 }
-```
-
-## Running All Data As-Is
-```{r}
-list_of_its_dates <- c(as.Date("2020-01-20"), as.Date("2020-03-11"), as.Date("2020-05-19"), as.Date("2020-10-02"))
-for (d in list_of_its_dates) {
-  print(as.Date(d))
-  print("obesity")
-  arima_its(d, obesity_count_per_day, "post")
-  print("**********")
-  print("health control")
-  arima_its(d, headaches_count_per_day, "post")
-  print("**********")
-  print("non-health control")
-  arima_its(d, clarinet_count_per_day, "post")
-  print("**********")
-}
-```
-
-## Differencing Data as Needed and Rerunning
-- Health control 01/20
-- Non-health control 01/20
-- Health control 03/11
-- Obesity 05/19
-```{r}
-arima_its(as.Date("2020-01-20"), headaches_count_per_day, "post", TRUE)
-arima_its(as.Date("2020-01-20"), clarinet_count_per_day, "post", TRUE)
-arima_its(as.Date("2020-03-11"), headaches_count_per_day, "post", TRUE)
-arima_its(as.Date("2020-05-19"), obesity_count_per_day, "post", TRUE)
 ```
 
 ## Plotting
@@ -459,8 +238,127 @@ obesity_count_per_day %>%
   labs(x = "Month",
        y = "Posts Per Day",
        title = "Obesity Posts per Day on Facebook\nApril 19, 2020 - November 1, 2020")
+setwd("~/Documents/dartmouth/research/aim3_facebook_covid19_obesity/figures")
+ggsave("220105_month_posts_facebook.tiff",
+       width = 7.25,
+       height = 4.51)
 ```
 
+## Model Selection
+```{r}
+for (d in list_of_its_dates) {
+  print(as.Date(d))
+    print("pulse only")
+    arima_its(d, obesity_count_per_day, "post", pulse = TRUE)
+    print("**********")
+
+    print("step only")
+    arima_its(d, obesity_count_per_day, "post", step = TRUE)
+    print("**********")
+  
+    print("ramp only")
+    arima_its(d, obesity_count_per_day, "post", ramp = TRUE)
+    print("**********")
+  
+    print("pulse + step only")
+    arima_its(d, obesity_count_per_day, "post", pulse = TRUE, step = TRUE)
+    print("**********")
+
+    print("pulse + ramp only")
+    arima_its(d, obesity_count_per_day, "post", pulse = TRUE, ramp = TRUE)
+    print("**********")
+  
+    print("step + ramp only")
+    arima_its(d, obesity_count_per_day, "post", step = TRUE, ramp = TRUE)
+    print("**********")
+
+    print("all")
+    arima_its(d, obesity_count_per_day, "post", pulse = TRUE, step = TRUE, 
+              ramp = TRUE)
+    print("**********")
+}
+
+## Running May 19th with first differences
+print("pulse only")
+arima_its(as.Date("2020-05-19"), obesity_count_per_day, difference = TRUE, 
+          pulse = TRUE)
+print("**********")
+
+print("step only")
+arima_its(as.Date("2020-05-19"), obesity_count_per_day, difference = TRUE, 
+          step = TRUE)
+print("**********")
+  
+print("ramp only")
+arima_its(as.Date("2020-05-19"), obesity_count_per_day, difference = TRUE, 
+          ramp = TRUE)
+print("**********")
+  
+print("pulse + step only")
+arima_its(as.Date("2020-05-19"), obesity_count_per_day, difference = TRUE, 
+          pulse = TRUE, step = TRUE)
+print("**********")
+
+print("pulse + ramp only")
+arima_its(as.Date("2020-05-19"), obesity_count_per_day, difference = TRUE, 
+          pulse = TRUE, ramp = TRUE)
+print("**********")
+  
+print("step + ramp only")
+arima_its(as.Date("2020-05-19"), obesity_count_per_day, difference = TRUE, 
+          step = TRUE, ramp = TRUE)
+print("**********")
+
+print("all")
+arima_its(as.Date("2020-05-19"), obesity_count_per_day, difference = TRUE, 
+          pulse = TRUE, step = TRUE, ramp = TRUE)
+print("**********")
+
+
+```
+
+## Running Models
+- January 20th: Pulse only [first difference health & non-health]
+- March 11th: Pulse only [first difference health]
+- May 19th: Pulse + step [need to first difference obesity]
+- October 2nd: All
+```{r}
+dfs <- c("obesity_count_per_day", "headaches_count_per_day", "clarinet_count_per_day" )
+# January 20th
+for (df in dfs) {
+  print(df)
+  if (df == "obesity_count_per_day") {
+    arima_its(as.Date("2020-01-20"), get(df), difference = FALSE, pulse = TRUE)
+  } else {
+    arima_its(as.Date("2020-01-20"), get(df), difference = TRUE, pulse = TRUE)
+  }
+}
+
+# March 11th
+for (df in dfs) {
+  print(df)
+  if (df == "headaches_count_per_day") {
+    arima_its(as.Date("2020-03-11"), get(df), difference = TRUE, 
+              pulse = TRUE)
+  } else {
+    arima_its(as.Date("2020-03-11"), get(df), difference = FALSE, 
+              pulse = TRUE)
+  }
+}
+
+# May 19th
+for (df in dfs) {
+  print(df)
+  if (df == "obesity_count_per_day") {
+    arima_its(as.Date("2020-05-19"), get(df), difference = TRUE, 
+              pulse = TRUE, step = TRUE)
+  } else {
+    arima_its(as.Date("2020-05-19"), get(df), difference = FALSE, 
+              pulse = TRUE, step = TRUE)
+  }
+}
+
+```
 
 # Interactions per Day
 ```{r}
@@ -520,245 +418,158 @@ ggsave("211214_change_in_interactions_over_time_facebook.tiff",
        height = 4.51)
 ```
 
-# BSTSM for Obesity vs. Health Comparator - # Interaction
-## January 20th, 2020 (First US Case)
+## Model Selection
 ```{r}
-headaches_interaction_per_day <- rbind(headaches_interaction_per_day,
-                                 c("2020-01-01", 0, "Health Comparator"))
+for (d in list_of_its_dates) {
+  print(as.Date(d))
+    print("pulse only")
+    arima_its(d, obesity_interaction_per_day, pulse = TRUE, 
+              post_or_interaction = "interactions")
+    print("**********")
 
-headaches_interaction_per_day %<>%
-  arrange(post_created_date)
+    print("step only")
+    arima_its(d, obesity_interaction_per_day, step = TRUE, 
+              post_or_interaction = "interactions")
+    print("**********")
+  
+    print("ramp only")
+    arima_its(d, obesity_interaction_per_day, ramp = TRUE, 
+              post_or_interaction = "interactions")
+    print("**********")
+  
+    print("pulse + step only")
+    arima_its(d, obesity_interaction_per_day, pulse = TRUE, step = TRUE,
+              post_or_interaction = "interactions")
+    print("**********")
 
-obesity_headaches_interaction_per_day_date_restricted <- as.data.frame(cbind(filter(obesity_interaction_per_day,
-                                                                post_created_date >= as.Date("2019-12-20") &
-                                                                  post_created_date <= as.Date("2020-02-21"))$interactions_per_day,
-                                                         filter(headaches_interaction_per_day,
-                                                                post_created_date >= as.Date("2019-12-20") &
-                                                                  post_created_date <= as.Date("2020-02-21"))$interactions_per_day))
-                                                         
-colnames(obesity_headaches_interaction_per_day_date_restricted) <- c("y", "x1")
-obesity_headaches_interaction_per_day_date_restricted$y <- as.numeric(obesity_headaches_interaction_per_day_date_restricted$y)
-obesity_headaches_interaction_per_day_date_restricted$x1 <- as.numeric(obesity_headaches_interaction_per_day_date_restricted$x1)
+    print("pulse + ramp only")
+    arima_its(d, obesity_interaction_per_day, pulse = TRUE, ramp = TRUE,
+              post_or_interaction = "interactions")
+    print("**********")
+  
+    print("step + ramp only")
+    arima_its(d, obesity_interaction_per_day, step = TRUE, ramp = TRUE,
+              post_or_interaction = "interactions")
+    print("**********")
 
-dat <- zoo(obesity_headaches_interaction_per_day_date_restricted,
-           seq.Date(as.Date("2019-12-20"),
-                    as.Date("2020-02-21"),
-                    "day"))
+    print("all")
+    arima_its(d, obesity_interaction_per_day, pulse = TRUE, step = TRUE, 
+              ramp = TRUE, post_or_interaction = "interactions")
+    print("**********")
+}
 
-pre_period <- as.Date(c("2019-12-20", "2020-01-20"))
-post_period <- as.Date(c("2020-01-21", "2020-02-21"))
-impact <- CausalImpact(dat, 
-                       pre_period, 
-                       post_period)
-plot(impact)
-summary(impact) #No difference after Jan. 20
+## Running January 20th, March 11th, and May 19th with first differences
+for (d in list_of_its_dates[1:3]) {
+  print(as.Date(d))
+    print("pulse only")
+    arima_its(d, obesity_interaction_per_day, pulse = TRUE, 
+              post_or_interaction = "interactions", difference = TRUE)
+    print("**********")
+
+    print("step only")
+    arima_its(d, obesity_interaction_per_day, step = TRUE, 
+              post_or_interaction = "interactions", difference = TRUE)
+    print("**********")
+  
+    print("ramp only")
+    arima_its(d, obesity_interaction_per_day, ramp = TRUE, 
+              post_or_interaction = "interactions", difference = TRUE)
+    print("**********")
+  
+    print("pulse + step only")
+    arima_its(d, obesity_interaction_per_day, pulse = TRUE, step = TRUE,
+              post_or_interaction = "interactions", difference = TRUE)
+    print("**********")
+
+    print("pulse + ramp only")
+    arima_its(d, obesity_interaction_per_day, pulse = TRUE, ramp = TRUE,
+              post_or_interaction = "interactions", difference = TRUE)
+    print("**********")
+  
+    print("step + ramp only")
+    arima_its(d, obesity_interaction_per_day, step = TRUE, ramp = TRUE,
+              post_or_interaction = "interactions", difference = TRUE)
+    print("**********")
+
+    print("all")
+    arima_its(d, obesity_interaction_per_day, pulse = TRUE, step = TRUE, 
+              ramp = TRUE, post_or_interaction = "interactions", difference = TRUE)
+    print("**********")
+}
 ```
 
-## March 11, 2020 (WHO Pandemic)
+## Checking for Differencing in Control Data
 ```{r}
-obesity_interaction_per_day <- rbind(obesity_interaction_per_day,
-                                 c("2020-04-01", 0, "Obesity"))
+dfs_interactions <- c("obesity_interaction_per_day", 
+                      "headaches_interaction_per_day", "clarinet_interaction_per_day")
 
-obesity_interaction_per_day %<>%
-  arrange(post_created_date)
-
-obesity_headaches_interaction_per_day_date_restricted_who <- as.data.frame(cbind(filter(obesity_interaction_per_day,
-                                                                post_created_date >= as.Date("2020-02-11") &
-                                                                  post_created_date <= as.Date("2020-04-12"))$interactions_per_day,
-                                                         filter(headaches_interaction_per_day,
-                                                                post_created_date >= as.Date("2020-02-11") &
-                                                                  post_created_date <= as.Date("2020-04-12"))$interactions_per_day))
-                                                         
-colnames(obesity_headaches_interaction_per_day_date_restricted_who) <- c("y", "x1")
-obesity_headaches_interaction_per_day_date_restricted_who$y <- as.numeric(obesity_headaches_interaction_per_day_date_restricted_who$y)
-obesity_headaches_interaction_per_day_date_restricted_who$x1 <- as.numeric(obesity_headaches_interaction_per_day_date_restricted_who$x1)
-
-dat <- zoo(obesity_headaches_interaction_per_day_date_restricted_who,
-           seq.Date(as.Date("2020-02-11"),
-                    as.Date("2020-04-12"),
-                    "day"))
-
-pre_period <- as.Date(c("2020-02-11", "2020-03-11"))
-post_period <- as.Date(c("2020-03-12", "2020-04-12"))
-impact_who <- CausalImpact(dat, 
-                       pre_period, 
-                       post_period)
-plot(impact_who)
-summary(impact_who) #Significantly fewer interaction
+for (d in list_of_its_dates) {
+  print(as.Date(d)) 
+  for (df in dfs_interactions) {
+    print(df)
+    arima_its_adf_test(d, get(df), "interactions")
+  }
+}
 ```
 
-## May 19th, 2020 (Obesity linked with COVID-19)
+## Running Models
+- January 20th: Step only [first difference obesity & non-health]
+- March 11th: Step only [first difference all]
+- May 19th: Pulse + step [first difference obesity & health]
+- October 2nd: Pulse + ramp [first difference health]
 ```{r}
-obesity_headaches_interaction_per_day_date_restricted_obesity_linked <- as.data.frame(cbind(filter(obesity_interaction_per_day,
-                                                                post_created_date >= as.Date("2020-04-19") &
-                                                                  post_created_date <= as.Date("2020-06-20"))$interactions_per_day,
-                                                         filter(headaches_interaction_per_day,
-                                                                post_created_date >= as.Date("2020-04-19") &
-                                                                  post_created_date <= as.Date("2020-06-20"))$interactions_per_day))
-                                                         
-colnames(obesity_headaches_interaction_per_day_date_restricted_obesity_linked) <- c("y", "x1")
-obesity_headaches_interaction_per_day_date_restricted_obesity_linked$y <- as.numeric(obesity_headaches_interaction_per_day_date_restricted_obesity_linked$y)
-obesity_headaches_interaction_per_day_date_restricted_obesity_linked$x1 <- as.numeric(obesity_headaches_interaction_per_day_date_restricted_obesity_linked$x1)
+# January 20th
+for (df in dfs_interactions) {
+  print(df)
+  if (df == "headaches_interaction_per_day") {
+    arima_its(as.Date("2020-01-20"), get(df), 
+              difference = FALSE, 
+              step = TRUE, 
+              post_or_interaction = "interaction")
+  } else {
+    arima_its(as.Date("2020-01-20"), get(df), 
+              post_or_interaction = "interaction", 
+              difference = TRUE, 
+              step = TRUE)
+  }
+}
 
-dat <- zoo(obesity_headaches_interaction_per_day_date_restricted_obesity_linked,
-           seq.Date(as.Date("2020-04-19"),
-                    as.Date("2020-06-20"),
-                    "day"))
+# March 11th
+for (df in dfs_interactions) {
+  print(df)
+  arima_its(as.Date("2020-03-11"), get(df), 
+            post_or_interaction = "interaction", 
+            difference = TRUE, 
+            step = TRUE)
+}
 
-pre_period <- as.Date(c("2020-04-19", "2020-05-19"))
-post_period <- as.Date(c("2020-05-20", "2020-06-20"))
-impact_obesity_linked <- CausalImpact(dat, 
-                       pre_period, 
-                       post_period)
-plot(impact_obesity_linked)
-summary(impact_obesity_linked) #No significant difference after obesity linked
-```
+# May 19th
+for (df in dfs_interactions) {
+  print(df)
+  if (df == "clarinet_interaction_per_day") {
+    arima_its(as.Date("2020-05-19"), get(df), post_or_interaction = "interaction", 
+              difference = FALSE,
+              pulse = TRUE, step = TRUE)
+  } else {
+    arima_its(as.Date("2020-05-19"), get(df), post_or_interaction = "interaction", 
+              difference = TRUE, 
+              pulse = TRUE, step = TRUE)
+  }
+}
 
-## October 2, 2020 (Trump gets COVID-19)
-```{r}
-headaches_interaction_per_day <- rbind(headaches_interaction_per_day,
-                                 c("2020-11-01", 0, "Health Comparator"))
+# October 2nd
+for (df in dfs_interactions) {
+  print(df)
+  if (df == "headaches_interaction_per_day") {
+    arima_its(as.Date("2020-05-19"), get(df), post_or_interaction = "interaction", 
+              difference = TRUE, 
+              pulse = TRUE, ramp = TRUE)
+  } else {
+    arima_its(as.Date("2020-05-19"), get(df), post_or_interaction = "interaction", 
+              difference = FALSE, 
+              pulse = TRUE, ramp = TRUE)
+  }
+}
 
-headaches_interaction_per_day %<>%
-  arrange(post_created_date)
-
-obesity_headaches_interaction_per_day_date_restricted_trump <- as.data.frame(cbind(filter(obesity_interaction_per_day,
-                                                                post_created_date >= as.Date("2020-09-02") &
-                                                                  post_created_date <= as.Date("2020-11-03"))$interactions_per_day,
-                                                         filter(headaches_interaction_per_day,
-                                                                post_created_date >= as.Date("2020-09-02") &
-                                                                  post_created_date <= as.Date("2020-11-03"))$interactions_per_day))
-                                                         
-colnames(obesity_headaches_interaction_per_day_date_restricted_trump) <- c("y", "x1")
-obesity_headaches_interaction_per_day_date_restricted_trump$y <- as.numeric(obesity_headaches_interaction_per_day_date_restricted_trump$y)
-obesity_headaches_interaction_per_day_date_restricted_trump$x1 <- as.numeric(obesity_headaches_interaction_per_day_date_restricted_trump$x1)
-
-dat <- zoo(obesity_headaches_interaction_per_day_date_restricted_trump,
-           seq.Date(as.Date("2020-09-02"),
-                    as.Date("2020-11-03"),
-                    "day"))
-
-pre_period <- as.Date(c("2020-09-02", "2020-10-02"))
-post_period <- as.Date(c("2020-10-03", "2020-11-03"))
-impact_trump <- CausalImpact(dat, 
-                       pre_period, 
-                       post_period)
-plot(impact_trump)
-summary(impact_trump) #No significant difference after Trump gets COVID-19 
-```
-
-# BSTSM for Obesity vs. Non-Health Comparator - #Interactions
-## January 20th, 2020 (First US Case)
-```{r}
-obesity_clarinet_interaction_per_day_date_restricted <- as.data.frame(cbind(filter(obesity_interaction_per_day,
-                                                                post_created_date >= as.Date("2019-12-20") &
-                                                                  post_created_date <= as.Date("2020-02-21"))$interactions_per_day,
-                                                         filter(clarinet_interaction_per_day,
-                                                                post_created_date >= as.Date("2019-12-20") &
-                                                                  post_created_date <= as.Date("2020-02-21"))$interactions_per_day))
-                                                         
-colnames(obesity_clarinet_interaction_per_day_date_restricted) <- c("y", "x1")
-obesity_clarinet_interaction_per_day_date_restricted$y <- as.numeric(obesity_clarinet_interaction_per_day_date_restricted$y)
-obesity_clarinet_interaction_per_day_date_restricted$x1 <- as.numeric(obesity_clarinet_interaction_per_day_date_restricted$x1)
-
-dat <- zoo(obesity_clarinet_interaction_per_day_date_restricted,
-           seq.Date(as.Date("2019-12-20"),
-                    as.Date("2020-02-21"),
-                    "day"))
-
-pre_period <- as.Date(c("2019-12-20", "2020-01-20"))
-post_period <- as.Date(c("2020-01-21", "2020-02-21"))
-impact <- CausalImpact(dat, 
-                       pre_period, 
-                       post_period)
-plot(impact)
-summary(impact) #Significant change after January 20th 
-```
-
-## March 11, 2020 (WHO Pandemic)
-```{r}
-obesity_interaction_per_day <- rbind(obesity_interaction_per_day,
-                                 c("2020-04-01", 0, "Obesity"))
-
-obesity_interaction_per_day %<>%
-  arrange(post_created_date)
-
-obesity_clarinet_interaction_per_day_date_restricted_who <- as.data.frame(cbind(filter(obesity_interaction_per_day,
-                                                                post_created_date >= as.Date("2020-02-11") &
-                                                                  post_created_date <= as.Date("2020-04-12"))$interactions_per_day,
-                                                         filter(clarinet_interaction_per_day,
-                                                                post_created_date >= as.Date("2020-02-11") &
-                                                                  post_created_date <= as.Date("2020-04-12"))$interactions_per_day))
-                                                         
-colnames(obesity_clarinet_interaction_per_day_date_restricted_who) <- c("y", "x1")
-obesity_clarinet_interaction_per_day_date_restricted_who$y <- as.numeric(obesity_clarinet_interaction_per_day_date_restricted_who$y)
-obesity_clarinet_interaction_per_day_date_restricted_who$x1 <- as.numeric(obesity_clarinet_interaction_per_day_date_restricted_who$x1)
-
-dat <- zoo(obesity_clarinet_interaction_per_day_date_restricted_who,
-           seq.Date(as.Date("2020-02-11"),
-                    as.Date("2020-04-12"),
-                    "day"))
-
-pre_period <- as.Date(c("2020-02-11", "2020-03-11"))
-post_period <- as.Date(c("2020-03-12", "2020-04-12"))
-impact_who <- CausalImpact(dat, 
-                       pre_period, 
-                       post_period)
-plot(impact_who)
-summary(impact_who) #Significantly fewer interaction
-```
-
-## May 19th, 2020 (Obesity linked with COVID-19)
-```{r}
-obesity_clarinet_interaction_per_day_date_restricted_who <- as.data.frame(cbind(filter(obesity_interaction_per_day,
-                                                                post_created_date >= as.Date("2020-04-19") &
-                                                                  post_created_date <= as.Date("2020-06-20"))$interactions_per_day,
-                                                         filter(clarinet_interaction_per_day,
-                                                                post_created_date >= as.Date("2020-04-19") &
-                                                                  post_created_date <= as.Date("2020-06-20"))$interactions_per_day))
-                                                         
-colnames(obesity_clarinet_interaction_per_day_date_restricted_who) <- c("y", "x1")
-obesity_clarinet_interaction_per_day_date_restricted_who$y <- as.numeric(obesity_clarinet_interaction_per_day_date_restricted_who$y)
-obesity_clarinet_interaction_per_day_date_restricted_who$x1 <- as.numeric(obesity_clarinet_interaction_per_day_date_restricted_who$x1)
-
-dat <- zoo(obesity_clarinet_interaction_per_day_date_restricted_who,
-           seq.Date(as.Date("2020-04-19"),
-                    as.Date("2020-06-20"),
-                    "day"))
-
-pre_period <- as.Date(c("2020-04-19", "2020-05-19"))
-post_period <- as.Date(c("2020-05-20", "2020-06-20"))
-impact_obesity_linked <- CausalImpact(dat, 
-                       pre_period, 
-                       post_period)
-plot(impact_obesity_linked)
-summary(impact_obesity_linked) #No significant difference after obesity linked
-```
-
-## October 2, 2020 (Trump gets COVID-19)
-```{r}
-obesity_clarinet_interaction_per_day_date_restricted_trump <- as.data.frame(cbind(filter(obesity_interaction_per_day,
-                                                                post_created_date >= as.Date("2020-09-02") &
-                                                                  post_created_date <= as.Date("2020-11-03"))$interactions_per_day,
-                                                         filter(clarinet_interaction_per_day,
-                                                                post_created_date >= as.Date("2020-09-02") &
-                                                                  post_created_date <= as.Date("2020-11-03"))$interactions_per_day))
-                                                         
-colnames(obesity_clarinet_interaction_per_day_date_restricted_trump) <- c("y", "x1")
-obesity_clarinet_interaction_per_day_date_restricted_trump$y <- as.numeric(obesity_clarinet_interaction_per_day_date_restricted_trump$y)
-obesity_clarinet_interaction_per_day_date_restricted_trump$x1 <- as.numeric(obesity_clarinet_interaction_per_day_date_restricted_trump$x1)
-
-dat <- zoo(obesity_clarinet_interaction_per_day_date_restricted_trump,
-           seq.Date(as.Date("2020-09-02"),
-                    as.Date("2020-11-03"),
-                    "day"))
-
-pre_period <- as.Date(c("2020-09-02", "2020-10-02"))
-post_period <- as.Date(c("2020-10-03", "2020-11-03"))
-impact_trump <- CausalImpact(dat, 
-                       pre_period, 
-                       post_period)
-plot(impact_trump)
-summary(impact_trump) #No significant difference after Trump gets COVID-19 
 ```
 
