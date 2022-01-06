@@ -1,0 +1,461 @@
+---
+title: "instagram arima"
+author: "CCP"
+date: "1/6/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Libraries and Packages
+```{r}
+library(tidyverse)
+library(data.table) #fread
+library(janitor) #clean_names
+library(zoo) #numeric date to date
+library(astsa) #adf.test
+library(forecast) #arima
+library(magrittr) #%<>%
+```
+
+# Functions
+## ADF Test
+```{r}
+arima_its_adf_test <- function(its_date, 
+                      dat, 
+                      post_or_interaction = "post") {
+  first_date = as.Date(its_date) - 30
+  last_date = as.Date(its_date) + 30
+  
+  dat_filtered <- dat %>%
+      dplyr::filter(post_created_date >= first_date &
+                    post_created_date <= last_date)
+  
+  date_seq <- seq.Date(from = as.Date(first_date),
+                         length.out = nrow(dat_filtered),
+                         by = 1)
+
+  if (post_or_interaction == "post") {
+      dat_ts <- ts(as.numeric(dat_filtered$posts_per_day), 
+                              start = first_date,
+                              frequency = 365)
+
+  } else {
+      dat_ts <- ts(as.numeric(dat_filtered$interactions_per_day), 
+                                   start = first_date,
+                                   frequency = 365)
+  }
+  
+  print(adf.test(dat_ts)) #Stationary data if significant (we want stationary)
+}
+```
+
+## Function: ARIMA- ITS
+```{r}
+## Note: If adf.test is not significant, that means data needs to be differenced and this function re-run with difference = TRUE. This function does not difference the data. 
+arima_its <- function(its_date, 
+                      dat, 
+                      difference = FALSE,
+                      pulse = FALSE,
+                      step = FALSE,
+                      ramp = FALSE,
+                      post_or_interaction = "post") {
+  print(difference)
+  first_date = as.Date(its_date) - 30
+  last_date = as.Date(its_date) + 30
+  
+  dat_filtered <- dat %>%
+      dplyr::filter(post_created_date >= first_date &
+                    post_created_date <= last_date)
+  
+  date_seq <- seq.Date(from = as.Date(first_date),
+                         length.out = nrow(dat_filtered),
+                         by = 1)
+
+  if (post_or_interaction == "post") {
+      dat_ts <- ts(as.numeric(dat_filtered$posts_per_day), 
+                              start = first_date,
+                              frequency = 365)
+
+  } else {
+      dat_ts <- ts(as.numeric(dat_filtered$interactions_per_day), 
+                                   start = first_date,
+                                   frequency = 365)
+  }
+  
+  #print(adf.test(dat_ts)) #Stationary data if significant (we want stationary)
+
+## Step Parameter
+  transfer <- c()
+  if (step == TRUE) {
+    dat_step <- ifelse(date_seq >= its_date, 1, 0)
+    transfer <- cbind(transfer, dat_step)
+  }
+
+## Ramp Parameter
+  if (ramp == TRUE) {
+    dat_step <- ifelse(date_seq >= its_date, 1, 0)
+    dat_ramp <- append(rep(0,
+                         length(which(dat_step == 0))),
+                     seq(1,
+                         length(which(dat_step == 1)),
+                         1))
+    transfer <- cbind(transfer, dat_ramp)
+  }
+## Pulse Parameter
+  if (pulse == TRUE) {
+    dat_pulse <- ifelse(date_seq == its_date, 1, 0)
+    transfer <- cbind(transfer, dat_pulse)
+  }
+
+  if (difference == TRUE) {
+    print("Running with differencing")
+      model_func <- auto.arima(dat_ts,
+                               d = 1, #Considers differencing data
+                               xreg = transfer)
+  } else {
+    print("Running with no differencing")
+      model_func <- auto.arima(dat_ts,
+                               xreg = transfer)
+  }
+
+  #print(Box.test(model_func$residuals, 
+  #         type = "Ljung-Box")) 
+
+  print(summary(model_func))
+  print(confint(model_func))
+  print((1-pnorm(abs(model_func$coef)/sqrt(diag(model_func$var.coef))))*2)
+}
+```
+
+# Data
+```{r}
+setwd("~/Documents/dartmouth/research/aim3_facebook_covid19_obesity/data")
+obesity_instagram <- fread("220106_obesity_instagram.csv") %>%
+  clean_names()
+headaches_instagram <- fread("220106_health_control_instagram.csv") %>%
+  clean_names()
+clarinet_instagram <- fread("220106_non_health_control_instagram.csv") %>% 
+  clean_names()
+```
+
+# Posts per Day
+```{r}
+obesity_count_per_day_instagram <- obesity_instagram %>%
+  group_by(post_created_date) %>%
+  summarise(posts_per_day = n()) %>%
+  mutate(data_set = "Obesity")
+
+headaches_count_per_day_instagram <- headaches_instagram %>%
+  group_by(post_created_date) %>%
+  summarise(posts_per_day = n()) %>%
+  mutate(data_set = "Health Comparator")
+
+clarinet_count_per_day_instagram <- clarinet_instagram %>%
+  group_by(post_created_date) %>%
+  summarise(posts_per_day = n()) %>%
+  mutate(data_set = "Non-Health Comparator")
+```
+
+## Checking for Differencing Need
+```{r}
+list_of_its_dates <- c(as.Date("2020-01-20"),
+                       as.Date("2020-03-11"),
+                       as.Date("2020-05-19"),
+                       as.Date("2020-10-02"))
+
+dfs_posts <- c("obesity_count_per_day_instagram", 
+                      "headaches_count_per_day_instagram",
+                      "clarinet_count_per_day_instagram")
+
+for (d in list_of_its_dates) {
+  print(as.Date(d))
+  for (df in dfs_posts) {
+    print(df)
+    arima_its_adf_test(d, get(df))
+  }
+}
+```
+
+## Model Selection
+- January 20th: Difference obesity
+- March 11th: Difference non-health control
+- May 19th: Difference health control
+- October 2nd: No difference
+```{r}
+# No differencing (everything but January 20)
+for (d in list_of_its_dates) {
+  if (as.Date(d) == as.Date("2020-01-20")) {
+    diff = TRUE
+  } else {
+    diff = FALSE
+  }
+  print(as.Date(d))
+  print("pulse only")
+  arima_its(d, obesity_count_per_day_instagram, pulse = TRUE,
+            difference = diff)
+  print("**********")
+  
+  print("step only")
+  arima_its(d, obesity_count_per_day_instagram, step = TRUE,
+            difference = diff)
+  print("**********")
+  
+  print("ramp only")
+  arima_its(d, obesity_count_per_day_instagram, ramp = TRUE,
+            difference = diff)
+  print("**********")
+  
+  print("pulse + step only")
+  arima_its(d, obesity_count_per_day_instagram, 
+            pulse = TRUE, 
+            step = TRUE,
+            difference = diff)
+  print("**********")
+  
+  print("pulse + ramp only")
+  arima_its(d, obesity_count_per_day_instagram, 
+            pulse = TRUE, ramp = TRUE,
+            difference = diff)
+  print("**********")
+  
+  print("step + ramp only")
+  arima_its(d, obesity_count_per_day_instagram, 
+            step = TRUE, ramp = TRUE,
+            difference = diff)
+  print("**********")
+  
+  print("all")
+  arima_its(d, obesity_count_per_day_instagram,
+            pulse = TRUE, step = TRUE, ramp = TRUE,
+            difference = diff)
+  print("**********")
+}
+```
+
+## Running Models
+- January 20th: Difference obesity
+- March 11th: Difference non-health control
+- May 19th: Difference health control
+- October 2nd: No difference
+```{r}
+# January 20th
+for (df in dfs_posts) {
+  print(df)
+  if (df == "obesity_count_per_day_instagram") {
+    arima_its(as.Date("2020-01-20"), get(df), 
+              difference = TRUE, 
+              pulse = TRUE)
+  } else {
+    arima_its(as.Date("2020-01-20"), get(df), 
+              difference = FALSE, 
+              pulse = TRUE)
+  }
+}
+
+# March 11th
+for (df in dfs_posts) {
+  print(df)
+  if (df == "clarinet_count_per_day_instagram") {
+    arima_its(as.Date("2020-03-11"), get(df), 
+              difference = TRUE, 
+              step = TRUE)
+  } else {
+    arima_its(as.Date("2020-03-11"), get(df), 
+              difference = FALSE, 
+              step = TRUE)
+  }
+}
+
+# May 19th
+for (df in dfs_posts) {
+  print(df)
+  if (df == "headaches_count_per_day_instagram") {
+    arima_its(as.Date("2020-05-19"), get(df),
+              difference = TRUE,
+              pulse = TRUE)
+  } else {
+    arima_its(as.Date("2020-05-19"), get(df),
+              difference = FALSE, 
+              pulse = TRUE)
+  }
+}
+
+# October 2nd
+for (df in dfs_posts) {
+  print(df)
+    arima_its(as.Date("2020-10-02"), get(df),
+              difference = FALSE, 
+              pulse = TRUE)
+  }
+```
+
+# Interaction per Day
+```{r}
+obesity_instagram %<>%
+  mutate(total_interactions_numeric = as.numeric(str_remove_all(total_interactions, " ")))
+
+headaches_instagram %<>%
+  mutate(total_interactions_numeric = as.numeric(str_remove_all(total_interactions, " ")))
+
+clarinet_instagram %<>%
+  mutate(total_interactions_numeric = as.numeric(str_remove_all(total_interactions, " ")))
+
+obesity_interaction_per_day <- obesity_instagram %>%
+  group_by(post_created_date) %>%
+  summarise(interactions_per_day = sum(total_interactions_numeric, na.rm = TRUE)) %>%
+  mutate(data_set = "Obesity")
+
+headaches_interaction_per_day <- headaches_instagram %>%
+  group_by(post_created_date) %>%
+  summarise(interactions_per_day = sum(total_interactions_numeric, na.rm = TRUE)) %>%
+  mutate(data_set = "Health Comparator")
+
+clarinet_interaction_per_day <- clarinet_instagram %>%
+  group_by(post_created_date) %>%
+  summarise(interactions_per_day = sum(total_interactions_numeric, na.rm = TRUE)) %>%
+  mutate(data_set = "Non-Health Comparator")
+```
+
+## Checking for Differencing Need
+```{r}
+list_of_its_dates <- c(as.Date("2020-01-20"),
+                       as.Date("2020-03-11"),
+                       as.Date("2020-05-19"),
+                       as.Date("2020-10-02"))
+
+dfs_posts <- c("obesity_interaction_per_day", 
+                      "headaches_interaction_per_day",
+                      "clarinet_interaction_per_day")
+
+for (d in list_of_its_dates) {
+  print(as.Date(d))
+  for (df in dfs_posts) {
+    print(df)
+    arima_its_adf_test(d, get(df), post_or_interaction = "interactions")
+  }
+}
+```
+
+## Model Selection
+- January 20th: Difference obesity and non-health control
+- March 11th: Difference non-health control
+- May 19th: Difference non-health control
+- October 2nd: Difference non-health difference
+```{r}
+# No differencing (everything but January 20)
+for (d in list_of_its_dates) {
+  if (as.Date(d) == as.Date("2020-01-20")) {
+    diff = TRUE
+  } else {
+    diff = FALSE
+  }
+  print(as.Date(d))
+  print("pulse only")
+  arima_its(d, obesity_interaction_per_day, pulse = TRUE,
+            difference = diff, post_or_interaction = "interactions")
+  print("**********")
+  
+  print("step only")
+  arima_its(d, obesity_interaction_per_day, step = TRUE,
+            difference = diff, post_or_interaction = "interactions")
+  print("**********")
+  
+  print("ramp only")
+  arima_its(d, obesity_interaction_per_day, ramp = TRUE,
+            difference = diff, post_or_interaction = "interactions")
+  print("**********")
+  
+  print("pulse + step only")
+  arima_its(d, obesity_interaction_per_day, 
+            pulse = TRUE, 
+            step = TRUE,
+            difference = diff, post_or_interaction = "interactions")
+  print("**********")
+  
+  print("pulse + ramp only")
+  arima_its(d, obesity_interaction_per_day, 
+            pulse = TRUE, ramp = TRUE,
+            difference = diff, post_or_interaction = "interactions")
+  print("**********")
+  
+  print("step + ramp only")
+  arima_its(d, obesity_interaction_per_day, 
+            step = TRUE, ramp = TRUE,
+            difference = diff, post_or_interaction = "interactions")
+  print("**********")
+  
+  print("all")
+  arima_its(d, obesity_interaction_per_day,
+            pulse = TRUE, step = TRUE, ramp = TRUE,
+            difference = diff, post_or_interaction = "interactions")
+  print("**********")
+}
+```
+
+## Running Models
+- January 20th: Difference obesity and non-health control
+- March 11th: Difference non-health control
+- May 19th: Difference non-health control
+- October 2nd: Difference non-health difference
+```{r}
+# January 20th
+for (df in dfs_posts) {
+  print(df)
+  if (df != "headaches_interaction_per_day") {
+    arima_its(as.Date("2020-01-20"), get(df), 
+              difference = TRUE, post_or_interaction = "interactions", 
+              step = TRUE)
+  } else {
+    arima_its(as.Date("2020-01-20"), get(df), 
+              difference = FALSE, post_or_interaction = "interactions", 
+              step = TRUE)
+  }
+}
+
+# March 11th
+for (df in dfs_posts) {
+  print(df)
+  if (df == "clarinet_interaction_per_day") {
+    arima_its(as.Date("2020-03-11"), get(df), 
+              difference = TRUE, post_or_interaction = "interactions", 
+              pulse = TRUE)
+  } else {
+    arima_its(as.Date("2020-03-11"), get(df), 
+              difference = FALSE, post_or_interaction = "interactions", 
+              pulse = TRUE)
+  }
+}
+
+# May 19th
+for (df in dfs_posts) {
+  print(df)
+  if (df == "clarinet_interaction_per_day") {
+    arima_its(as.Date("2020-05-19"), get(df),
+              difference = TRUE, post_or_interaction = "interactions",
+              pulse = TRUE, step = TRUE)
+  } else {
+    arima_its(as.Date("2020-05-19"), get(df),
+              difference = FALSE, post_or_interaction = "interactions", 
+              pulse = TRUE, step = TRUE)
+  }
+}
+
+# October 2nd
+for (df in dfs_posts) {
+  print(df)
+  if (df == "clarinet_interaction_per_day") {
+    arima_its(as.Date("2020-10-02"), get(df),
+              difference = TRUE, post_or_interaction = "interactions",
+              pulse = TRUE)
+  } else {
+    arima_its(as.Date("2020-10-02"), get(df),
+              difference = FALSE, post_or_interaction = "interactions", 
+              pulse = TRUE)
+  }
+}
+```
+
+
