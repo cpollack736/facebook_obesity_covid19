@@ -1,0 +1,86 @@
+---
+title: "facebook clustering"
+author: "CCP"
+date: "1/8/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Libraries
+```{r}
+library(tidyverse)
+library(data.table)
+library(magrittr)
+library(janitor)
+```
+
+# Data
+```{r}
+setwd("~/Documents/dartmouth/research/aim3_facebook_covid19_obesity/data")
+obesity_meta <- fread("220108_facebook_obesity_withindex.csv") %>%
+  clean_names()
+meta_text_mapping <- fread("220109_meta_text_mapping.csv")
+
+obesity <- fread("211105_feature_matrix_bert.csv")
+lda_topics <- fread("220108_lda_topic_probabilities.csv")
+kmeans <- fread("220108_kmeans_centroids.csv")
+dbscan <- fread("221106_dbscan_labels.csv")
+```
+
+# Assigning Final Label to Eventually Combine Data
+```{r}
+obesity$corpus_index = seq(1, nrow(obesity))
+lda_topics$corpus_index = seq(1, nrow(lda_topics))
+kmeans$corpus_index = seq(1, nrow(kmeans))
+dbscan$corpus_index = seq(1, nrow(dbscan))
+```
+
+# Picking Label for LDA Based on Max Prob.
+```{r}
+set.seed(110295)
+lda_topics %<>%
+  replace(is.na(.), 0)
+
+lda_topics %<>%
+  mutate(lda_topic = colnames(lda_topics)[3:6][max.col(lda_topics[,3:6],
+                                                       ties.method="random")])
+```
+
+# Comparing Final Labels
+```{r}
+cluster_labels <- lda_topics %>%
+  select(corpus_index, lda_topic) %>%
+  left_join(select(kmeans,
+                   -V1)) %>%
+  mutate(lda_char = as.character(lda_topic),
+         centroids_char = as.character(kmeans_centroids),
+         plus_char = as.character(kmeans_plus)) %>%
+  unite("compare_labels",
+        lda_char:plus_char,
+        remove = TRUE)
+```
+
+# Combine Feature Matrix and Topic
+```{r}
+obesity %<>%
+  select(-V1, -index) %>%
+  left_join(lda_topics, by = "corpus_index")
+#180,481 in "0",
+#268,856 in "1",
+#103,479 in "2",
+#77,144 in "3"
+```
+
+# Combine Metadata and Feature Matrix
+```{r}
+pet_page_category <- c("ADOPTION_SERVICE", "ANIMAL_RESCUE_SERVICE", "ANIMAL_SHELTER", "AQUARIUM", "AQUATIC_PET_STORE", "DOG_BREEDER", "DOG_DAY_CARE_CENTER", "DOG_PARK", "DOG_TRAINING", "DOG_WALKER", "EQUESTRIAN_FACILITY", "HORSEBACK_RIDING_SERVICE", "HORSE_TRAINER", "KENNEL", "PET", "PETTING_ZOO", "PET_ADOPTION_SERVICE", "PET_BREEDER", "PET_CAFE", "PET_GROOMER", "PET_SERVICE", "PET_SITTER", "PET_STORE", "PET_SUPPLIES", "REPTILE_PET_STORE", "ZOO")
+obesity_meta %<>%
+  filter(!(page_category %in% pet_page_category))
+
+text_meta_matching <- lapply(obesity$A[1:10], function(x) {
+  grep(x, obesity_meta$message)
+})
+```
