@@ -14,16 +14,11 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(data.table)
 library(magrittr)
-library(janitor)
-library(stringi)
 ```
 
 # Data
 ```{r}
 setwd("~/Documents/dartmouth/research/aim3_facebook_covid19_obesity/data")
-obesity_meta <- fread("220108_facebook_obesity_withindex.csv") %>%
-  clean_names()
-
 obesity <- fread("211105_feature_matrix_bert.csv")
 lda_topics <- fread("220108_lda_topic_probabilities.csv")
 #kmeans <- fread("220108_kmeans_centroids.csv")
@@ -60,27 +55,26 @@ obesity %<>%
 #77,144 in "3"
 ```
 
-# Combine Metadata and Feature Matrix
+# Psycholinguistic Differences Between Clusters
 ```{r}
-pet_page_category <- c("ADOPTION_SERVICE", "ANIMAL_RESCUE_SERVICE", "ANIMAL_SHELTER", "AQUARIUM", "AQUATIC_PET_STORE", "DOG_BREEDER", "DOG_DAY_CARE_CENTER", "DOG_PARK", "DOG_TRAINING", "DOG_WALKER", "EQUESTRIAN_FACILITY", "HORSEBACK_RIDING_SERVICE", "HORSE_TRAINER", "KENNEL", "PET", "PETTING_ZOO", "PET_ADOPTION_SERVICE", "PET_BREEDER", "PET_CAFE", "PET_GROOMER", "PET_SERVICE", "PET_SITTER", "PET_STORE", "PET_SUPPLIES", "REPTILE_PET_STORE", "ZOO")
-obesity_meta %<>%
-  filter(!(page_category %in% pet_page_category))
+head(obesity)
+obesity_liwc <- obesity %>% 
+  select(WC:OtherP, lda_topic)
 
-# Final Goal: Combine Meta and Obesity
-meta_indices <- NULL
-obesity_row <- NULL
-for (i in 1:nrow(obesity)) {
-  if (i %% 10000 == 0) {
-    print(i)
-  }
-  meta_indices_loop <-
-    which(stri_detect_fixed(obesity_meta$message,
-                            obesity$A[i]))
-  
-  meta_indices <- c(meta_indices, meta_indices_loop)
-  
-  obesity_row <- c(obesity_row, rep(i, length(meta_indices_loop)))
-} 
-```
+liwc_p_values <- c()
+for (liwc in colnames(obesity_liwc)[1:length(colnames(obesity_liwc))-1]) {
+  liwc_p_values <- c(liwc_p_values, 
+                     summary(aov(get(liwc) ~ lda_topic, 
+                                 data = obesity_liwc))[[1]][["Pr(>F)"]][1])
+}
+fdr_p_values <- p.adjust(liwc_p_values, method = "fdr")
+which(fdr_p_values > 0.05)
 
-# 
+for (liwc in colnames(obesity_liwc)[1:length(colnames(obesity_liwc))-1]) {
+  print(liwc)
+  print(TukeyHSD(aov(get(liwc) ~ lda_topic,
+             data = obesity_liwc)))
+  print("**********")
+}
+``` 
+
