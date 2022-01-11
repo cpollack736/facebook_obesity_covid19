@@ -15,12 +15,16 @@ library(tidyverse)
 library(data.table)
 library(magrittr)
 library(janitor)
-library(stringi)
+library(scales)
+library(zoo)
+library(tseries)
+library(forecast)
 ```
 
 # Data
 ```{r}
 setwd("~/Documents/dartmouth/research/aim3_facebook_covid19_obesity/data")
+text_meta_xwalk <- fread("220109_text_meta_xwalk.csv")
 obesity_meta <- fread("220108_facebook_obesity_withindex.csv") %>%
   clean_names()
 
@@ -28,6 +32,116 @@ obesity <- fread("211105_feature_matrix_bert.csv")
 lda_topics <- fread("220108_lda_topic_probabilities.csv")
 #kmeans <- fread("220108_kmeans_centroids.csv")
 #dbscan <- fread("221106_dbscan_labels.csv")
+```
+
+# Function
+## ADF Test
+```{r}
+arima_its_adf_test <- function(its_date, 
+                      dat, 
+                      post_or_interaction = "post") {
+  first_date = as.Date(its_date) - 30
+  last_date = as.Date(its_date) + 30
+  
+  dat_filtered <- dat %>%
+      dplyr::filter(post_created_date >= first_date &
+                    post_created_date <= last_date)
+  
+  date_seq <- seq.Date(from = as.Date(first_date),
+                         length.out = nrow(dat_filtered),
+                         by = 1)
+
+  if (post_or_interaction == "post") {
+      dat_ts <- ts(as.numeric(dat_filtered$posts_per_day), 
+                              start = first_date,
+                              frequency = 365)
+
+  } else {
+      dat_ts <- ts(as.numeric(dat_filtered$interactions_per_day), 
+                                   start = first_date,
+                                   frequency = 365)
+  }
+  
+  print(adf.test(dat_ts)) #Stationary data if significant (we want stationary)
+}
+```
+
+## ARIMA- ITS
+```{r}
+## Note: If adf.test is not significant, that means data needs to be differenced and this function re-run with difference = TRUE. This function does not difference the data. 
+arima_its <- function(its_date, 
+                      dat, 
+                      difference = FALSE,
+                      pulse = FALSE,
+                      step = FALSE,
+                      ramp = FALSE,
+                      post_or_interaction = "post") {
+  print(difference)
+  first_date = as.Date(its_date) - 30
+  last_date = as.Date(its_date) + 30
+  
+  dat_filtered <- dat %>%
+      dplyr::filter(post_created_date >= first_date &
+                    post_created_date <= last_date)
+  
+  date_seq <- seq.Date(from = as.Date(first_date),
+                         length.out = nrow(dat_filtered),
+                         by = 1)
+
+  if (post_or_interaction == "post") {
+      dat_ts <- ts(as.numeric(dat_filtered$posts_per_day), 
+                              start = first_date,
+                              frequency = 365)
+
+  } else {
+      dat_ts <- ts(as.numeric(dat_filtered$interactions_per_day), 
+                                   start = first_date,
+                                   frequency = 365)
+  }
+  
+  #print(adf.test(dat_ts)) #Stationary data if significant (we want stationary)
+
+## Step Parameter
+  transfer <- c()
+  if (step == TRUE) {
+    dat_step <- ifelse(date_seq >= its_date, 1, 0)
+    transfer <- cbind(transfer, dat_step)
+  }
+
+## Ramp Parameter
+  if (ramp == TRUE) {
+    dat_step <- ifelse(date_seq >= its_date, 1, 0)
+    dat_ramp <- append(rep(0,
+                         length(which(dat_step == 0))),
+                     seq(1,
+                         length(which(dat_step == 1)),
+                         1))
+    transfer <- cbind(transfer, dat_ramp)
+  }
+## Pulse Parameter
+  if (pulse == TRUE) {
+    dat_pulse <- ifelse(date_seq == its_date, 1, 0)
+    transfer <- cbind(transfer, dat_pulse)
+  }
+
+  if (difference == TRUE) {
+    print("Running with differencing")
+      model_func <- auto.arima(dat_ts,
+                               d = 1, #Considers differencing data
+                               xreg = transfer)
+  } else {
+    print("Running with no differencing")
+      model_func <- auto.arima(dat_ts,
+                               xreg = transfer)
+  }
+
+  #print(Box.test(model_func$residuals, 
+  #         type = "Ljung-Box")) 
+
+  print(summary(model_func))
+  print(confint(model_func))
+  print((1-pnorm(abs(model_func$coef)/sqrt(diag(model_func$var.coef))))*2)
+}
 ```
 
 # Assigning Final Label to Eventually Combine Data
@@ -66,21 +180,176 @@ pet_page_category <- c("ADOPTION_SERVICE", "ANIMAL_RESCUE_SERVICE", "ANIMAL_SHEL
 obesity_meta %<>%
   filter(!(page_category %in% pet_page_category))
 
+obesity_meta %<>%
+  as.data.frame()
+
 # Final Goal: Combine Meta and Obesity
-meta_indices <- NULL
-obesity_row <- NULL
-for (i in 1:nrow(obesity)) {
-  if (i %% 10000 == 0) {
-    print(i)
-  }
-  meta_indices_loop <-
-    which(stri_detect_fixed(obesity_meta$message,
-                            obesity$A[i]))
-  
-  meta_indices <- c(meta_indices, meta_indices_loop)
-  
-  obesity_row <- c(obesity_row, rep(i, length(meta_indices_loop)))
-} 
+#obesity$corpus_index = seq(1, nrow(obesity))
+obesity_meta$matching_index <- seq(0, nrow(obesity_meta)-1)
+
+topics_metadata_combo <- obesity %>%
+  select(A, lda_topic) %>%
+  left_join(text_meta_xwalk,
+            by = c("A" = "V2")) %>%
+  left_join(obesity_meta,
+            by = c("V3" = "matching_index"))
 ```
 
-# 
+# Most Popular Post Per Topic
+```{r}
+topics_metadata_combo %<>%
+    mutate(total_interactions_numeric =
+             as.numeric(str_remove_all(total_interactions, 
+                                       " ")))
+topics_metadata_combo %>%
+  group_by(lda_topic) %>%
+  summarise(max_total_interaction = max(total_interactions_numeric,
+                                         na.rm = TRUE)) 
+#0: 180,189
+# 1: 414,058
+# 2: 190,733
+# 3 31,942
+
+View(topics_metadata_combo %>% 
+  group_by(lda_topic) %>% 
+  top_n(1, total_interactions_numeric) %>%
+    distinct(.))
+```
+
+
+# Evaluating Number of LDA Clusters Over Time
+## Plotting
+```{r}
+topics_metadata_combo %>%
+  group_by(lda_topic, post_created_date) %>%
+  summarise(count_per_day = n()) %>%
+  filter(!is.na(post_created_date)) %>%
+  ggplot(aes(x = post_created_date,
+             y = count_per_day,
+             color = lda_topic)) +
+  geom_line() +
+  theme_classic() +
+  labs(x = "Date",
+       y = "Count",
+       title = "Number of Sentences per Topic Per Day",
+       color = "LDA Topic") +
+  scale_y_continuous(labels = comma)
+setwd("~/Documents/dartmouth/research/aim3_facebook_covid19_obesity/figures")
+ggsave("220110_topics_per_day.tiff",
+       width = 7.25, 
+       height = 4.51)
+
+topics_metadata_combo %>%
+  group_by(lda_topic, post_created_date) %>%
+  summarise(count_per_day = n()) %>%
+  filter(!is.na(post_created_date)) %>%
+  ggplot(aes(x = post_created_date,
+             y = count_per_day,
+             color = lda_topic)) +
+  geom_line() +
+  facet_wrap(~lda_topic, 
+             scales = "free_y") + 
+  scale_y_continuous(labels = comma) + 
+  theme_classic() +
+  labs(x = "Date",
+       y = "Count",
+       title = "Number of Sentences per Topic Per Day",
+       color = "LDA Topic")
+setwd("~/Documents/dartmouth/research/aim3_facebook_covid19_obesity/figures")
+ggsave("220110_topics_per_day_facet.tiff",
+       width = 7.25, 
+       height = 4.51)
+```
+
+## Running ARIMA
+### Checking if Stationary
+```{r}
+list_of_its_dates <- c(as.Date("2020-01-20"),
+                       as.Date("2020-03-11"),
+                       as.Date("2020-05-19"),
+                       as.Date("2020-10-02"))
+
+topics_per_day <- topics_metadata_combo %>%
+  group_by(lda_topic, post_created_date) %>%
+  summarise(posts_per_day = n()) %>%
+  filter(!is.na(post_created_date))
+
+topics_per_day_0 <- topics_per_day %>%
+  filter(lda_topic == 0)
+topics_per_day_1 <- topics_per_day %>%
+  filter(lda_topic == 1)
+topics_per_day_2 <- topics_per_day %>%
+  filter(lda_topic == 2)
+topics_per_day_3 <- topics_per_day %>%
+  filter(lda_topic == 3)
+
+dfs <- c("topics_per_day_0", "topics_per_day_1", "topics_per_day_2", "topics_per_day_3")
+
+for (d in list_of_its_dates) {
+  print(as.Date(d))
+  for (df in dfs) {
+    print(df)
+    arima_its_adf_test(d, get(df))
+  }
+}
+```
+
+### Checking Which Transfer Functions to Use
+```{r}
+for (df in dfs) {
+  for (d in list_of_its_dates) {
+    if (df == "topics_per_day_0" | #Topics 0 needs differencing on every day
+        (as.Date(d) == as.Date("2020-03-11") & 
+               df != "topics_per_day_1") | # Difference everything but Topic 1 for March 11
+        (df == "topics_per_day_1" & #Topic 2 needs differencing for May 19th and October 2nd 
+         as.Date(d) %in% c(as.Date("2020-05-19"),
+                           as.Date("2020-10-02")))) {
+      diff = TRUE
+    } else {
+      diff = FALSE
+    }
+    print(as.Date(d))
+    print(df)
+    print("pulse only")
+    arima_its(d, get(df), pulse = TRUE,
+              difference = diff)
+    print("**********")
+    
+    print("step only")
+    arima_its(d, get(df), step = TRUE,
+              difference = diff)
+    print("**********")
+    
+    print("ramp only")
+    arima_its(d, get(df), ramp = TRUE,
+              difference = diff)
+    print("**********")
+    
+    print("pulse + step only")
+    arima_its(d, get(df), 
+              pulse = TRUE, 
+              step = TRUE,
+              difference = diff)
+    print("**********")
+    
+    print("pulse + ramp only")
+    arima_its(d, get(df), 
+              pulse = TRUE, ramp = TRUE,
+              difference = diff)
+    print("**********")
+    
+    print("step + ramp only")
+    arima_its(d, get(df), 
+              step = TRUE, ramp = TRUE,
+              difference = diff)
+    print("**********")
+    
+    print("all")
+    arima_its(d, get(df),
+              pulse = TRUE, step = TRUE, ramp = TRUE,
+              difference = diff)
+    print("**********")
+  }
+}
+```
+
