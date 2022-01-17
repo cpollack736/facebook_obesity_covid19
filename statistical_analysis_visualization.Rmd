@@ -100,8 +100,8 @@ ggsave("211214_change_in_posts_over_time_facebook.tiff",
 arima_its_adf_test <- function(its_date, 
                       dat, 
                       post_or_interaction = "post") {
-  first_date = as.Date(its_date) - 30
-  last_date = as.Date(its_date) + 30
+  first_date = as.Date(its_date) - 14
+  last_date = as.Date(its_date) + 14
   
   dat_filtered <- dat %>%
       dplyr::filter(post_created_date >= first_date &
@@ -137,8 +137,8 @@ arima_its <- function(its_date,
                       ramp = FALSE,
                       post_or_interaction = "post") {
   print(difference)
-  first_date = as.Date(its_date) - 30
-  last_date = as.Date(its_date) + 30
+  first_date = as.Date(its_date) - 14
+  last_date = as.Date(its_date) + 14
   
   dat_filtered <- dat %>%
       dplyr::filter(post_created_date >= first_date &
