@@ -25,11 +25,15 @@ library(tidytext)
 # Data
 ```{r}
 setwd("~/Documents/dartmouth/research/aim3_facebook_covid19_obesity/data")
+bigrams <- fread("data220127_facebook_post_bigrams.csv")
+
 obesity_topics <- fread("data220125_lda_topic_probabilities.csv") %>%
   clean_names()
 
 obesity_meta <- fread("220120_feature_matrix_no_bert.csv") %>%
   clean_names()
+
+headache_control <- fread("")
 ```
 
 # Function
@@ -382,7 +386,6 @@ View(obesity %>%
 ```
 
 # Evaluating Number of LDA Clusters Over Time
-
 ## Running ARIMA
 ### Checking if Stationary
 ```{r}
@@ -447,12 +450,11 @@ for (df in dfs) {
 aic_table %<>%
   as.data.frame()
 
+aic_table$best_transfer_function <- apply(aic_table, 1, FUN = function(x) names(x)[which.min(x)])
+
 aic_table %<>%
   mutate_at(c("aic_pulse", "aic_step", "aic_ramp", "aic_pulse_step", "aic_pulse_ramp", "aic_step_ramp", "aic_all"),
             as.numeric) %>%
-  mutate_if(is.numeric, funs(. * -1)) %>%
-  mutate(best_transfer_function = colnames(aic_table)[3:9][max.col(aic_table[3:9])]) %>%
-  mutate_if(is.numeric, funs(.*-1)) %>%
   rowwise() %>%
   mutate(best_aic = round(min(aic_pulse, aic_step, aic_ramp, aic_pulse_step, aic_pulse_ramp, aic_step_ramp, aic_all), 3)) %>%
   as.data.frame()
@@ -465,262 +467,104 @@ View(aic_table %>% select(df, d, best_aic, best_transfer_function))
 # January 20th
 for (df in dfs) {
   print(df)
-  if (df == "topics_per_day_2") {
-    arima_its(as.Date("2020-01-20"),
-              get(df),
-              difference = 1,
-              pulse = TRUE)
+  p = FALSE
+  r = FALSE
+  s = FALSE
+  if (df %in% c("topics_per_day_1", "topics_per_day_3", "topics_per_day_10", "topics_per_day_11", "topics_per_day_12", "topics_per_day_13", "topics_per_day_14")) {
+    p = TRUE
   }
-  else {
-        arima_its(as.Date("2020-01-20"),
-              get(df),
-              difference = 1,
-              step = TRUE)
+  else if (df %in% c("topics_per_day_4", "topics_per_day_6", "topics_per_day_9")) {
+    s = TRUE
+  } else {
+    r = TRUE
   }
+  arima_its(as.Date("2020-01-20"),
+            get(df),
+            pulse = p,
+            step = s,
+            ramp = r)
 }
 
 # March 11th
 for (df in dfs) {
   print(df)
-  if (df == "topics_per_day_1") {
-    diff = 2
-  } else if (df == "topics_per_day_2") {
-    diff = 3
-  } else {
-    diff = 1
+  p = FALSE
+  r = FALSE
+  s = FALSE
+  if (df %in% c("topics_per_day_7", "topics_per_day_11", "topics_per_day_12")) {
+    p = TRUE
   }
-  if (df == "topics_per_day_2") {
-    arima_its(as.Date("2020-03-11"),
-              get(df),
-              difference = diff,
-              pulse = TRUE)
+  if (df %in% c("topics_per_day_1", "topics_per_day_2", "topics_per_day_4", "topics_per_day_8", "topics_per_day_12")) {
+    s = TRUE
   }
-  else if (df == "topics_per_day_3") {
-        arima_its(as.Date("2020-03-11"),
-              get(df),
-              difference = diff,
-              pulse = TRUE,
-              step = TRUE)
-  } else {
-    arima_its(as.Date("2020-03-11"),
-              get(df),
-              difference = diff,
-              step = TRUE)
+  if (df %in% c("topics_per_day_3", "topics_per_day_5", "topics_per_day_6", "topics_per_day_9", "topics_per_day_10", "topics_per_day_12", "topics_per_day_13", "topics_per_day_14")) {
+    r = TRUE
   }
+  arima_its(as.Date("2020-03-11"),
+            get(df),
+            pulse = p,
+            step = s,
+            ramp = r)
 }
 
 # May 19th
 for (df in dfs) {
   print(df)
-  if (df == "topics_per_day_1") {
-    diff = 1
-  } else {
-    diff = NA
+  p = FALSE
+  r = FALSE
+  s = FALSE
+  if (df %in% c("topics_per_day_2", "topics_per_day_3", "topics_per_day_4", "topics_per_day_5", "topics_per_day_6", "topics_per_day_7", "topics_per_day_8", "topics_per_day_9", "topics_per_day_10", "topics_per_day_12", "topics_per_day_13")) {
+    p = TRUE
   }
-  if (df == "topics_per_day_1") {
-    arima_its(as.Date("2020-05-19"),
-              get(df),
-              difference = diff,
-              pulse = TRUE)
+  if (df %in% c("topics_per_day_1", "topics_per_day_2", "topics_per_day_10", "topics_per_day_11", "topics_per_day_12", "topics_per_day_14")) {
+    s = TRUE
   }
-  
-  else {
-    arima_its(as.Date("2020-05-19"),
-              get(df),
-              difference = diff,
-              step = TRUE, pulse = TRUE, ramp = TRUE)
+  if (df %in% c("topics_per_day_1", "topics_per_day_2", "topics_per_day_4", "topics_per_day_11")) {
+    r = TRUE
   }
+  arima_its(as.Date("2020-05-19"),
+            get(df),
+            pulse = p,
+            step = s,
+            ramp = r)
 }
 
 # October 2nd
 for (df in dfs) {
   print(df)
+  p = FALSE
+  r = FALSE
+  s = FALSE
+  if (df %in% c("topics_per_day_1", "topics_per_day_2", "topics_per_day_3", "topics_per_day_4", "topics_per_day_7", "topics_per_day_8", "topics_per_day_9", "topics_per_day_12", "topics_per_day_14")) {
+    p = TRUE
+  }
+  if (df %in% c("topics_per_day_1", "topics_per_day_2", "topics_per_day_5", "topics_per_day_6", "topics_per_day_7", "topics_per_day_11", "topics_per_day_13")) {
+    s = TRUE
+  }
+  if (df %in% c("topics_per_day_2", "topics_per_day_6", "topics_per_day_7", "topics_per_day_10")) {
+    r = TRUE
+  }
   arima_its(as.Date("2020-10-02"),
-              get(df),
-              difference = 1,
-              pulse = TRUE)
+            get(df),
+            pulse = p,
+            step = s,
+            ramp = r)
 }
+
 ```
 
-## Running ARIMA
-### Checking if Stationary
+# Bigram Analysis
 ```{r}
-list_of_its_dates <- c(as.Date("2020-01-20"),
-                       as.Date("2020-03-11"),
-                       as.Date("2020-05-19"),
-                       as.Date("2020-10-02"))
-
-topics_per_day <- obesity_meta_with_topic_restricted_dates %>%
-  group_by(lda_topic, post_created_date) %>%
-  summarise(posts_per_day = sum(total_interactions_numeric)) %>%
-  filter(!is.na(post_created_date))
-
-topics_per_day_0 <- topics_per_day %>%
-  filter(lda_topic == 0)
-topics_per_day_1 <- topics_per_day %>%
-  filter(lda_topic == 1)
-topics_per_day_2 <- topics_per_day %>%
-  filter(lda_topic == 2)
-topics_per_day_3 <- topics_per_day %>%
-  filter(lda_topic == 3)
-
-dfs <- c("topics_per_day_0", "topics_per_day_1", "topics_per_day_2", "topics_per_day_3")
-
-for (d in list_of_its_dates) {
-  print(as.Date(d))
-  for (df in dfs) {
-    print(df)
-    arima_its_adf_test(d, get(df))
-  }
-}
+obesity_with_bigrams <- cbind(obesity, bigrams[2:nrow(bigrams)])
 ```
 
-### Checking Which Transfer Functions to Use
+# LIWC Analysis
 ```{r}
-for (df in dfs) {
-  for (d in list_of_its_dates) {
-    if (d == as.Date("2020-01-20") & df != "topics_per_day_3") {
-      diff = NA
-    } else {
-      diff = 1
-    }
-    
-    print(as.Date(d))
-    print(df)
-    print("pulse only")
-    arima_its(d, get(df), pulse = TRUE,
-              difference = diff)
-    print("**********")
-    
-    print("step only")
-    arima_its(d, get(df), step = TRUE,
-              difference = diff)
-    print("**********")
-    
-    print("ramp only")
-    arima_its(d, get(df), ramp = TRUE,
-              difference = diff)
-    print("**********")
-    
-    print("pulse + step only")
-    arima_its(d, get(df), 
-              pulse = TRUE, 
-              step = TRUE,
-              difference = diff)
-    print("**********")
-    
-    print("pulse + ramp only")
-    arima_its(d, get(df), 
-              pulse = TRUE, ramp = TRUE,
-              difference = diff)
-    print("**********")
-    
-    print("step + ramp only")
-    arima_its(d, get(df), 
-              step = TRUE, ramp = TRUE,
-              difference = diff)
-    print("**********")
-    
-    print("all")
-    arima_its(d, get(df),
-              pulse = TRUE, step = TRUE, ramp = TRUE,
-              difference = diff)
-    print("**********")
-  }
+liwc_vader <- colnames(obesity)[c(356:359, 403:495)]
+
+for (var in liwc_vader) {
+  aov(lda_topic)
 }
 ```
 
-### Running Models
-```{r}
-# January 20th
-for (df in dfs) {
-  print(df)
-  if (df == "topics_per_day_2") {
-    arima_its(as.Date("2020-01-20"),
-              get(df),
-              pulse = TRUE)
-  }
-  else if (df == "topics_per_day_3") {
-      arima_its(as.Date("2020-01-20"),
-              get(df),
-              difference = 1,
-              step = TRUE)
-  } else {
-        arima_its(as.Date("2020-01-20"),
-              get(df),
-              step = TRUE)
-  }
-}
-
-# March 11th
-for (df in dfs) {
-  print(df)
-  if (df == "topics_per_day_0") {
-    arima_its(as.Date("2020-03-11"),
-              get(df),
-              difference = 1,
-              pulse = TRUE)
-  }
-  else if (df == "topics_per_day_3") {
-        arima_its(as.Date("2020-03-11"),
-              get(df),
-              difference = 1,
-              step = TRUE)
-  } else {
-    arima_its(as.Date("2020-03-11"),
-              get(df),
-              difference = 1,
-              ramp = TRUE)
-  }
-}
-
-# May 19th
-for (df in dfs) {
-  print(df)
-  if (df == "topics_per_day_0") {
-    arima_its(as.Date("2020-05-19"),
-              get(df),
-              difference = 1,
-              step = TRUE, ramp = TRUE)
-    
-  } else if (df == "topics_per_day_1") {
-    arima_its(as.Date("2020-05-19"),
-              get(df),
-              difference = 1,
-              pulse = TRUE)
-  }  else if (df == "topics_per_day_2") {
-    arima_its(as.Date("2020-05-19"),
-              get(df),
-              difference = 1,
-              pulse = TRUE, step = TRUE)
-  } else {
-    arima_its(as.Date("2020-05-19"),
-              get(df),
-              difference = 1,
-              step = TRUE)
-  }
-}
-
-# October 2nd
-for (df in dfs) {
-  print(df)
-  if (df == "topics_per_day_2") {
-    arima_its(as.Date("2020-10-02"),
-              get(df),
-              difference = 1,
-              pulse = TRUE, step = TRUE, ramp = TRUE)
-  }
-  else if (df == "topics_per_day_3") {
-        arima_its(as.Date("2020-10-02"),
-              get(df),
-              difference = 1,
-              step = TRUE)
-  } else {
-    arima_its(as.Date("2020-10-02"),
-              get(df),
-              difference = 1,
-              pulse = TRUE)
-  }
-}
-```
 
