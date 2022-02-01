@@ -25,6 +25,11 @@ library(tidytext)
 # Data
 ```{r}
 setwd("~/Documents/dartmouth/research/aim3_facebook_covid19_obesity/data")
+nonzero_model_health_control_to_export <- fread("220128_nonzero_model_health_control_to_export_facebook.csv")
+zero_model_health_control_to_export <- fread("220128_zero_model_health_control_to_export_facebook.csv")
+
+health_control <- fread("220127_feature_matrix_no_bert_health_comparator.csv") %>% clean_names()
+
 bigrams <- fread("data220127_facebook_post_bigrams.csv")
 
 obesity_topics <- fread("data220125_lda_topic_probabilities.csv") %>%
@@ -32,8 +37,6 @@ obesity_topics <- fread("data220125_lda_topic_probabilities.csv") %>%
 
 obesity_meta <- fread("220120_feature_matrix_no_bert.csv") %>%
   clean_names()
-
-headache_control <- fread("")
 ```
 
 # Function
@@ -562,9 +565,152 @@ obesity_with_bigrams <- cbind(obesity, bigrams[2:nrow(bigrams)])
 ```{r}
 liwc_vader <- colnames(obesity)[c(356:359, 403:495)]
 
-for (var in liwc_vader) {
-  aov(lda_topic)
+health_control$lda_topic_renamed <- "Health Control"
+
+zero_model_health_control <- NULL
+nonzero_model_health_control <- NULL
+
+for (val in liwc_vader) {
+  print(val)
+  obesity_loop <- obesity %>%
+    select(val, lda_topic_renamed)
+  
+  health_control_loop <- health_control %>%
+    select(val, lda_topic_renamed)
+  
+  loop <- rbind(obesity_loop, health_control_loop)
+  
+  if (min(loop[,1], na.rm = TRUE) > 0) { #Checking that at least one 0 in the data
+    next 
+  }
+  
+  loop$val_binary <- ifelse(loop[,1] > 0, 0, 1) #Binary yes/no for zeros, above 0 is 0, zero is 1
+  loop_tidy <- glm(val_binary ~ lda_topic_renamed,
+                   data = loop,
+                   family = binomial(link = "logit")) %>%
+    tidy(conf.int = TRUE) %>%
+    select(term, estimate, conf.low, conf.high, p.value) #Zero-inflated model
+  
+  loop_tidy$val <- val
+  zero_model_health_control <- rbind(zero_model_health_control, loop_tidy) #Adding results to final DF
+      
+  loop_part2 <- loop %>%
+     filter(val_binary == 0) #Only keeping non-zero values
+  
+  if (length(unique(loop_part2$lda_topic_renamed)) == 1) { #Checking that both types of labels are in the filtered data set
+     next
+   }
+  loop_tidy_part2 <- lm(get(val) ~ lda_topic_renamed,
+                    data = loop_part2) %>%
+     tidy(conf.int = TRUE) %>%
+     select(term, estimate, conf.low, conf.high, p.value)
+   
+  loop_tidy_part2$val <- val
+  nonzero_model_health_control <- rbind(nonzero_model_health_control, loop_tidy_part2)   
 }
+
+
+zero_model_health_control_to_export <- zero_model_health_control %>%
+  filter(term != "(Intercept)") %>%
+       mutate(estimate = round(estimate, 2),
+              conf.low = round(conf.low, 2),
+              conf.high = round(conf.high, 2),
+              p.value.adjust = p.adjust(p.value,
+                                        n = nrow(zero_model_health_control),
+                                        method = "fdr"),
+              p.value.adjust = round(p.value.adjust, 3))
+
+nonzero_model_health_control_to_export <- nonzero_model_health_control %>%
+    filter(term != "(Intercept)") %>%
+       mutate(estimate = round(estimate, 2),
+              conf.low = round(conf.low, 2),
+              conf.high = round(conf.high, 2),
+              p.value.adjust = p.adjust(p.value,
+                                        n = nrow(zero_model_health_control),
+                                        method = "fdr"),
+              p.value.adjust = round(p.value.adjust, 3))
+setwd("~/Documents/dartmouth/research/aim3_facebook_covid19_obesity/data")
+write.csv(nonzero_model_health_control_to_export, "220128_nonzero_model_health_control_to_export_facebook.csv")
+write.csv(zero_model_health_control_to_export, "220128_zero_model_health_control_to_export_facebook.csv")
+
 ```
 
+## Plot for Select Summary Dimensions
+- Analytic, Clout, Authenticity, Tone,
+- Word Count,  Words Per Sentence, Words Greater Than Six Letters, Dictionary Words
+- Affect Words, Social Words, Core Drives and Needs, Compound
+- Cognitive Processes, Perceptual Processes, Biological Processes, Informal Speech, 
+- Function Words, Punctuation
+## Option 1: Heat Map
+```{r}
+nonzero_model_health_control_to_export %>%
+  group_by(val) %>%
+  mutate(term_plot = gsub("lda_topic_renamedTopic: ", "", term),
+         term_plot = factor(term_plot, levels = c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14")),
+         estimate_plot = (estimate - mean(estimate, na.rm = TRUE)) / sd(estimate, na.rm = TRUE),
+         facet_plot = case_when(
+           val %in% c("neg", "neu", "pos", "compound") ~ "VADER",
+           val %in% c("analytic", "clout", "authentic", "tone") ~ "Summary",
+           val %in% c("wps", "dic", "sixltr", "wc") ~ "General",
+           val %in% c("pronoun", "ppron", "i", "we", "you", "shehe", "they", "ipron") ~ "Pronouns",
+           val %in% c("function", "article", "prep", "auxverb", "adverb", "conj", "negate") ~ "Function",
+           val %in% c("verb", "adj", "compare", "interrog", "number", "quant") ~ "Other Grammar",
+           val %in% c("affect", "posemo", "negemo", "anx", "anger", "sad_2") ~ "Affective Processes",
+           val %in% c("social", "family", "friend", "female", "male") ~ "Social Processes", 
+           val %in% c("cogproc", "insight", "cause", "discrep", "tentat", "certain", "differ") ~ "Cognitive Processes",
+           val %in% c("percept", "see", "hear", "feel") ~ "Perceptual Processes",
+           val %in% c("bio", "body", "health", "sexual", "ingest") ~ "Biological Processes",
+           val %in% c("drives", "affiliation", "achieve", "power", "reward", "risk") ~ "Core Drives and Needs", 
+           val %in% c("focuspast", "focuspresent", "focusfuture") ~ "Time Orientation",
+           val %in% c("relativ", "motion", "space", "time") ~ "Relativity",
+           val %in% c("work", "leisure", "home", "money", "relig", "death") ~ "Personal Concerns",
+           val %in% c("informal", "swear", "netspeak", "assent", "nonflu", "filler") ~ "Informal Language",
+           val %in% c("all_punc", "period", "comma", "colon", "semi_c", "q_mark") ~ "Punctuation - 1",
+           val %in% c("exclam", "dash", "quote", "apostro", "parenth", "other_p") ~ "Punctuation - 2"),
+         facet_plot = factor(facet_plot, 
+                             levels = c("VADER", "Summary", "General", "Function", "Other Grammar", "Pronouns", "Affective Processes", "Social Processes", "Cognitive Processes", "Perceptual Processes", "Biological Processes", "Core Drives and Needs", "Time Orientation", "Relativity", "Personal Concerns", "Informal Language", "Punctuation - 1", "Punctuation - 2"))) %>%
+  ggplot(aes(x = term_plot,
+             y = val,
+             fill = estimate_plot)) + 
+  geom_tile() +
+  facet_wrap(~facet_plot, scales = "free_y", ncol = 6) + 
+  theme_classic() + 
+  theme(legend.position = "bottom",
+        axis.text.x = element_text(size = 4,
+                                   angle = 90,
+                                   hjust = 1),
+        axis.text.y = element_text(size = 8),
+        strip.text.x = element_text(size = 5)) +
+  scale_y_discrete(limits = rev) + 
+  scale_fill_gradient2() +
+  labs(x = "Topic",
+       y = "Term",
+       fill = "Standardized Estimate",
+       title = "Standardized Coefficient of Semicontinuous Hurdle Models (Health Control)")
+setwd("~/Documents/dartmouth/research/aim3_facebook_covid19_obesity/figures")
+ggsave("220131_standardized_hurdle_health_control.tiff",
+       width = 8.5,
+       height = 5.29)
+```
+
+## Option 2: Dot Plot
+```{r}
+nonzero_model_health_control_to_export %>%
+  filter(val %in% c("analytic", "clout", "authentic", "tone", "wc", "wps", "sixltr", "dic", "affect", "social", "drives", "compound", "cogproc", "percept", "bio", "informal", "function", "allpunc")) %>%
+  mutate(term_plot = gsub("lda_topic_renamedTopic: ", "", term),
+         term_plot = as.numeric(term_plot),
+         val_reordered = factor(val, levels = c("analytic", "clout", "authenticity", "tone", "wc", "wps", "sixltr", "dic", "affect", "social", "drives", "compound", "cogproc", "percept", "bio", "informal", "function", "allpunc")),
+         color_plot = ifelse(p.value.adjust > 0.05, "Not Significant", "Significant")) %>%
+  ggplot(aes(x = term_plot, 
+             y = estimate,
+             color = color_plot)) +
+  geom_point(size = 0.2) +
+  geom_errorbar(aes(ymin=conf.low, 
+                    ymax=conf.high)) +
+  geom_hline(yintercept = 0,
+             linetype = "dashed") + 
+  facet_wrap(~val, scales = "free_y") +
+  theme_classic() +
+  theme(legend.position = "none")
+```
 
