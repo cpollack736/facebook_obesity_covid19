@@ -25,6 +25,9 @@ library(tidytext)
 # Data
 ```{r}
 setwd("~/Documents/dartmouth/research/aim3_facebook_covid19_obesity/data")
+health_control <- fread("220127_combined_facebook_data_health_control_liwc.csv") %>% 
+  clean_names()
+
 nonzero_model_health_control_to_export <- fread("220128_nonzero_model_health_control_to_export_facebook.csv")
 
 non_health_control <- fread("220131_feature_matrix_no_bert_non_health_comparator.csv") %>%
@@ -33,8 +36,6 @@ non_health_control <- fread("220131_feature_matrix_no_bert_non_health_comparator
 nonzero_model_health_control_to_export <- fread("220128_nonzero_model_health_control_to_export_facebook.csv")
 zero_model_health_control_to_export <- fread("220128_zero_model_health_control_to_export_facebook.csv")
 
-health_control <- fread("220127_feature_matrix_no_bert_health_comparator.csv") %>% 
-  clean_names()
 bigrams <- fread("data220127_facebook_post_bigrams.csv")
 
 obesity_topics <- fread("data220125_lda_topic_probabilities.csv") %>%
@@ -651,7 +652,6 @@ write.csv(zero_model_health_control_to_export, "220128_zero_model_health_control
 ## Option 1: Heat Map
 ```{r}
 nonzero_model_health_control_to_export %>%
-  group_by(val) %>%
   mutate(term_plot = gsub("lda_topic_renamedTopic: ", "", term),
          term_plot = factor(term_plot, levels = c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14")),
          estimate_plot = (estimate - mean(estimate, na.rm = TRUE)) / sd(estimate, na.rm = TRUE),
