@@ -20,29 +20,13 @@ library(zoo)
 library(tseries)
 library(forecast)
 library(tidytext)
+library(RColorBrewer)
 ```
 
 # Data
 ```{r}
 setwd("~/Documents/dartmouth/research/aim3_facebook_covid19_obesity/data")
-health_control <- fread("220218_feature_matrix_no_bert_health_comparator.csv") %>% 
-  clean_names()
-
-nonzero_model_health_control_to_export <- fread("220128_nonzero_model_health_control_to_export_facebook.csv")
-
-non_health_control <- fread("220131_feature_matrix_no_bert_non_health_comparator.csv") %>%
-  clean_names()
-
-nonzero_model_health_control_to_export <- fread("220128_nonzero_model_health_control_to_export_facebook.csv")
-zero_model_health_control_to_export <- fread("220128_zero_model_health_control_to_export_facebook.csv")
-
-bigrams <- fread("data220127_facebook_post_bigrams.csv")
-
-obesity_topics <- fread("data220125_lda_topic_probabilities.csv") %>%
-  clean_names()
-
-obesity_meta <- fread("220120_feature_matrix_no_bert.csv") %>%
-  clean_names()
+obesity_topics <- fread("220304_obesity_with_topics.csv") %>%
 ```
 
 # Function
@@ -161,7 +145,7 @@ arima_its <- function(its_date,
   #         type = "Ljung-Box")) 
 
   if (aic_only == TRUE) {
-    return(model_func$aic)
+    return(model_func$aicc)
   }
   else {
     print(summary(model_func))
@@ -171,48 +155,23 @@ arima_its <- function(its_date,
 }
 ```
 
-# Picking Label for LDA Based on Max Prob.
-```{r}
-set.seed(110295)
-obesity_topics %<>%
-  replace(is.na(.), 0)
-
-obesity_topics %<>%
-  mutate(lda_topic = colnames(obesity_topics)[3:ncol(obesity_topics)][max.col(obesity_topics[,3:ncol(obesity_topics)],
-                                                       ties.method="random")])
-```
-
-# Combine Feature Matrix and Topic
-```{r}
-obesity_meta %<>%
-  select(-v1)
-
-obesity_topics %<>%
-  select(-v1)
-
-obesity_meta$index <- as.numeric(obesity_meta$index)
-
-obesity <- inner_join(obesity_meta, obesity_topics, by = "index")
-```
-
 # Number of Posts per Topic
 ```{r}
-obesity %<>%
-  as.data.frame()
+nrow(obesity_topics)
+View(obesity_topics %>%
+  group_by(topics) %>%
+  count())
 
-obesity %<>%
-  mutate(lda_topic_renamed = gsub("x", "", lda_topic),
-         lda_topic_numeric = as.numeric(lda_topic_renamed) + 1,
-         lda_topic_renamed = paste0("Topic: ", lda_topic_numeric))
+obesity_topics %<>%
+  filter(topics >= 1 & topics <= 11 & topics != 2) #17,907 posts
 
-View(obesity %>%
-  group_by(lda_topic_numeric) %>%
-  summarise(count = n()))
+obesity_topics %<>%
+  mutate(topic_renamed = paste0("Topic: ", topics))
 
-obesity %>%
-  group_by(lda_topic_renamed) %>%
+obesity_topics %>%
+  group_by(topic_renamed) %>%
   summarise(count = n()) %>%
-  ggplot(aes(y = reorder(lda_topic_renamed, count),
+  ggplot(aes(y = reorder(topic_renamed, count),
              x = count)) +
   geom_bar(stat = "identity",
            color = "black",
@@ -220,22 +179,22 @@ obesity %>%
   theme_classic() +
   labs(x = "Count",
        y = "Topic Number",
-       title = "Number of Posts per LDA Topic - Facebook")
+       title = "Number of Posts per BERTopic - Facebook")
 #setwd("~/Documents/dartmouth/research/aim3_facebook_covid19_obesity/figures")
-#ggsave("220126_topic_counts.tiff",
+#ggsave("220303_topic_counts.tiff",
 #       width = 7.25,
 #       height = 4.51)
 ```
 
 # Distribution of Interactions per Topic
 ```{r}
-obesity %<>%
+obesity_topics %<>%
     mutate(total_interactions_numeric =
              as.numeric(str_remove_all(total_interactions, 
                                        " ")))
 
-View(obesity %>%
-       group_by(lda_topic_numeric) %>%
+View(obesity_topics %>%
+       group_by(topic_renamed) %>%
        summarise(median(total_interactions_numeric,
                      na.rm = TRUE),
               quantile(total_interactions_numeric,
@@ -245,37 +204,37 @@ View(obesity %>%
                        0.75,
                        na.rm = TRUE)))
      
-obesity %>%
-  group_by(lda_topic_renamed) %>%
+obesity_topics %>%
+  group_by(topic_renamed) %>%
   filter(total_interactions_numeric > 0) %>%
   mutate(median_total_interaction = median(log10(total_interactions_numeric),
                                          na.rm = TRUE)) %>%
   ggplot(aes(x = log10(total_interactions_numeric),
-             y = reorder(lda_topic_renamed, 
+             y = reorder(topic_renamed, 
                          median_total_interaction))) +
   geom_boxplot(color = "black",
                fill = "#4267B2") +
   theme_classic() +
   labs(x = "Log (Base 10) Interactions",
        y = "Topic Number",
-       title = "Distribution of Interactions per LDA Topic - Facebook")
+       title = "Distribution of Interactions per BERTopic - Facebook")
 setwd("~/Documents/dartmouth/research/aim3_facebook_covid19_obesity/figures")
-ggsave("220126_interaction_distribution_facebook.tiff",
+ggsave("220303_interaction_distribution_facebook.tiff",
        width = 7.25,
        height = 4.51)
 ```
 
 ## By Interaction Type
 ```{r}
-obesity %>%
+obesity_topics %>%
   #mutate(lda_facet = gsub("Topic: ", "", lda_topic_renamed)) %>%
-  group_by(lda_topic_renamed) %>%
-  select(likes, comments, shares, love, wow, haha, sad, angry, care, lda_topic_renamed) %>%
-  melt(id = "lda_topic_renamed") %>%
+  group_by(topic_renamed) %>%
+  select(likes, comments, shares, love, wow, haha, sad, angry, care, topic_renamed) %>%
+  melt(id = "topic_renamed") %>%
   mutate(value = as.numeric(gsub(" ", "", value)),
          log_value = log10(value)) %>%
   filter(value > 0) %>%
-  ggplot(aes(x = reorder_within(lda_topic_renamed,
+  ggplot(aes(x = reorder_within(topic_renamed,
                                 log_value,
                                 variable,
                                 median),
@@ -304,17 +263,17 @@ obesity %>%
        x = "Topic",
        title = "Distribution of Interactions by Type and Topic - Facebook")
 setwd("~/Documents/dartmouth/research/aim3_facebook_covid19_obesity/figures")
-ggsave("220126_interaction_distribution_facebook_facet.tiff",
+ggsave("220304_interaction_distribution_facebook_facet.tiff",
        width = 7.25,
        height = 4.51)
 
-View(obesity %>%
-  group_by(lda_topic_renamed) %>%
-  select(likes, comments, shares, love, wow, haha, sad, angry, care, lda_topic_renamed) %>%
-  melt(id = "lda_topic_renamed") %>%
+View(obesity_topics %>%
+  group_by(topic_renamed) %>%
+  select(likes, comments, shares, love, wow, haha, sad, angry, care, topic_renamed) %>%
+  melt(id = "topic_renamed") %>%
   mutate(value = as.numeric(gsub(" ", "", value)),
          log_value = log10(value)) %>%
-  group_by(lda_topic_renamed, variable) %>%
+  group_by(topic_renamed, variable) %>%
   summarise(median(value, na.rm = TRUE),
             quantile(value, 0.25, na.rm = TRUE),
             quantile(value, 0.75, na.rm = TRUE)))
@@ -322,81 +281,90 @@ View(obesity %>%
 
 # Plot of Count per Day
 ```{r}
-obesity %>%
+obesity_topics %>%
   mutate(date_date = as.Date(post_created_date)) %>%
-  group_by(lda_topic_renamed, date_date) %>%
+  group_by(topic_renamed, date_date) %>%
   summarise(count_per_day = n()) %>%
-  mutate(lda_topic_renamed = factor(lda_topic_renamed,
-                                    levels = c("Topic: 1", "Topic: 2", "Topic: 3", "Topic: 4", "Topic: 5", "Topic: 6", "Topic: 7", "Topic: 8", "Topic: 9", "Topic: 10", "Topic: 11", "Topic: 12", "Topic: 13", "Topic: 14"))) %>%
+  mutate(topic_renamed = factor(topic_renamed,
+                                    levels = c("Topic: 1", "Topic: 3", "Topic: 4", "Topic: 5", "Topic: 6", "Topic: 7", "Topic: 8", "Topic: 9", "Topic: 10", "Topic: 11"))) %>%
   filter(date_date >= as.Date("2020-01-06"),
          date_date <= as.Date("2020-10-08")) %>%
   ggplot(aes(x = date_date,
              y = count_per_day,
-             color = lda_topic_renamed)) +
+             color = topic_renamed)) +
   geom_line(size = 0.25) +
   geom_vline(xintercept = c(as.Date("2020-01-20"),
                             as.Date("2020-03-11"),
                             as.Date("2020-05-19"),
                             as.Date("2020-10-02")),
              linetype = "dashed") + 
-  facet_wrap(~lda_topic_renamed,
+  facet_wrap(~topic_renamed,
              scales = "free_y") + 
-  scale_color_manual(values = c("#DC050C",
-                                "#E8601C", 
-                                "#F1932D", 
-                                "#F6C141", 
-                                "#F7F056", 
-                                "#CAE0AB", 
-                                "#90C987", 
-                                "#4EB265", 
-                                "#7BAFDE", 
-                                "#5289C7", 
-                                "#1965B0", 
-                                "#882E72", 
-                                "#AE76A3", 
-                                "#D1BBD7")) + 
+  scale_color_manual(values = c("#9E0142",
+                                "#D53E4F",
+                                "#F46D43",
+                                "#FDAE61",
+                                "#FEE08B",
+                                "#ABDDA4", 
+                                "#66C2A5",
+                                "#3288BD",
+                                "#5E4FA2",
+                                "grey")) +
   theme_classic() +
   theme(legend.position = "none") + 
   labs(x = "Date",
        y = "Count",
        title = "Number of Posts per Topic Per Day - Facebook")
 setwd("~/Documents/dartmouth/research/aim3_facebook_covid19_obesity/figures")
-ggsave("220126_topics_per_day_facet.tiff",
+ggsave("220304_topics_per_day_facet.tiff",
        width = 7.25, 
        height = 4.51)
 ```
 
 # Metadata Analysis
 ```{r}
-obesity_date_restricted <- obesity %>%
+obesity_date_restricted <- obesity_topics %>%
     filter(!is.na(post_created_date),
            post_created_date >= as.Date("2020-01-06"),
            post_created_date <= as.Date("2020-10-08"))
 
-View(obesity %>%
-  group_by(lda_topic_numeric) %>%
+View(obesity_topics %>%
+  filter(page_category != "none") %>%
+  group_by(topics) %>%
   mutate(denominator = n()) %>%
-  group_by(lda_topic_numeric, page_category) %>%
+  group_by(topics, page_category) %>%
   summarise(count = n(),
             percent = round(count/denominator*100, 2)) %>%
-  arrange(lda_topic_numeric, desc(count)) %>%
+  arrange(topics, desc(count)) %>%
   distinct(.) %>%
   ungroup() %>%
-  group_by(lda_topic_numeric) %>%
-  filter(row_number() <= 5))
+  group_by(topics) %>%
+  filter(row_number() <= 1))
 
-View(obesity %>%
+View(obesity_topics %>%
        group_by(page_category, page_name) %>%
        summarise(count = n()) %>%
        arrange(desc(count)) %>%
        ungroup() %>%
        group_by(page_category) %>%
        filter(row_number() == 1))
+
+View(obesity_topics %>%
+  group_by(topic_renamed) %>%
+  select(likes_at_posting, followers_at_posting, topic_renamed) %>%
+  melt(id = "topic_renamed") %>%
+  mutate(value = as.numeric(gsub(" ", "", value)),
+         log_value = log10(value)) %>%
+  group_by(topic_renamed, variable) %>%
+  summarise(median(value, na.rm = TRUE),
+            quantile(value, 0.25, na.rm = TRUE),
+            quantile(value, 0.75, na.rm = TRUE)))
+
 ```
 
 # Evaluating Number of LDA Clusters Over Time
 ## Running ARIMA
-### Checking if Stationary
+### Setting up Data
 ```{r}
 list_of_its_dates <- c(as.Date("2020-01-20"),
                        as.Date("2020-03-11"),
@@ -404,24 +372,19 @@ list_of_its_dates <- c(as.Date("2020-01-20"),
                        as.Date("2020-10-02"))
 
 topics_per_day <- obesity_date_restricted %>%
-  group_by(lda_topic_numeric, post_created_date) %>%
+  group_by(topics, post_created_date) %>%
   summarise(posts_per_day = n()) %>%
   filter(!is.na(post_created_date))
 
-for (i in min(topics_per_day$lda_topic_numeric):max(topics_per_day$lda_topic_numeric)) {
-  assign(paste0("topics_per_day_", i), topics_per_day %>%
-           filter(lda_topic_numeric == i))
-}
-
-dfs <- c("topics_per_day_1", "topics_per_day_2", "topics_per_day_3", "topics_per_day_4", "topics_per_day_5", "topics_per_day_6", "topics_per_day_7", "topics_per_day_8", "topics_per_day_9", "topics_per_day_10", "topics_per_day_11", "topics_per_day_12", "topics_per_day_13", "topics_per_day_14")
-
-for (d in list_of_its_dates) {
-  print(as.Date(d))
-  for (df in dfs) {
-    print(df)
-    arima_its_adf_test(d, get(df), summary = TRUE)
+for (i in min(topics_per_day$topics):max(topics_per_day$topics)) {
+  if (i == 2) {
+    next
   }
+  assign(paste0("topics_per_day_", i), topics_per_day %>%
+           filter(topics == i))
 }
+
+dfs <- c("topics_per_day_1", "topics_per_day_3", "topics_per_day_4", "topics_per_day_5", "topics_per_day_6", "topics_per_day_7", "topics_per_day_8", "topics_per_day_9", "topics_per_day_10", "topics_per_day_11")
 ```
 
 ### Checking Which Transfer Functions to Use
@@ -471,7 +434,7 @@ aic_table %<>%
 View(aic_table %>% select(df, d, best_aic, best_transfer_function))
 ```
 
-### Running Models
+### Running Models - Individual
 ```{r}
 # January 20th
 for (df in dfs) {
@@ -562,293 +525,147 @@ for (df in dfs) {
 
 ```
 
-# Bigram Analysis
+### Running Models - Combined per Topic
 ```{r}
-obesity_with_bigrams <- cbind(obesity, bigrams[2:nrow(bigrams)])
-```
+#for (df in dfs) {
+for (df in c("topics_per_day_3", "topics_per_day_8")) {
+  dat_ts_loop <- ts(as.numeric(unlist(get(df)["posts_per_day"])), 
+                   start = as.Date("2020-01-06"), #Hard coding since we know this is the consistent start date
+                   frequency = 365)
 
-# Health Control
-
-## LIWC Analysis
-```{r}
-liwc_vader <- colnames(obesity)[c(356:359, 403:495)]
-
-health_control$lda_topic_renamed <- "Health Control"
-
-zero_model_health_control <- NULL
-nonzero_model_health_control <- NULL
-
-#for (val in liwc_vader) {
-## Issue with interrogative/numbers/quantifiers so skipping for now
-for (val in liwc_vader[34:97]) {
-  print(val)
-  obesity_loop <- obesity %>%
-    select(val, lda_topic_renamed)
+  # January 20th pulse
+  df_loop <- get(df)
+  df_loop$pulse <- 0
+  df_loop$step <- 0
+  df_loop$ramp <- 0
   
-  health_control_loop <- health_control %>%
-    select(val, lda_topic_renamed)
+  #January 20th
+  if (df %in% c("topics_per_day_5", "topics_per_day_6", "topics_per_day_8")) {
+    df_loop$pulse <- ifelse(df_loop$post_created_date == as.Date("2020-01-20"), 
+                            1, 
+                            df_loop$pulse)
+  } 
   
-  loop <- rbind(obesity_loop, health_control_loop)
-  
-  if (min(loop[,1], na.rm = TRUE) > 0) { #Checking that at least one 0 in the data
-    next 
+  if (df %in% c("topics_per_day_1", "topics_per_day_3", "topics_per_day_10")) {
+    df_loop$step <- ifelse(df_loop$post_created_date >= as.Date("2020-01-20") &
+                             df_loop$post_created_date <= as.Date("2020-01-20")+14,
+                           1,
+                           df_loop$step)
+  } 
+
+  if (df %in% c("topics_per_day_4", "topics_per_day_7", "topics_per_day_9", "topics_per_day_10", "topics_per_day_11")) {
+    df_loop$ramp <- ifelse(df_loop$post_created_date >= as.Date("2020-01-20") &
+                             df_loop$post_created_date <= as.Date("2020-01-20")+14,
+                           as.numeric(difftime(as.Date(df_loop$post_created_date),
+                                               as.Date("2020-01-20"), 
+                                               units = "days")),
+                           df_loop$ramp)
   }
+ 
+  #March 11th
+  if (df %in% c("topics_per_day_1", "topics_per_day_6", "topics_per_day_8")) {
+    df_loop$pulse <- ifelse(df_loop$post_created_date == as.Date("2020-03-11"), 
+                            1, 
+                            df_loop$pulse)
+  } 
   
-  loop$val_binary <- ifelse(loop[,1] > 0, 0, 1) #Binary yes/no for zeros, above 0 is 0, zero is 1
-  loop_tidy <- glm(val_binary ~ lda_topic_renamed,
-                   data = loop,
-                   family = binomial(link = "logit")) %>%
-    tidy(conf.int = TRUE) %>%
-    select(term, estimate, conf.low, conf.high, p.value) #Zero-inflated model
+  if (df %in% c("topics_per_day_3", "topics_per_day_4", "topics_per_day_5", "topics_per_day_7", "topics_per_day_10", "topics_per_day_11")) {
+    df_loop$step <- ifelse(df_loop$post_created_date >= as.Date("2020-03-11") &
+                             df_loop$post_created_date <= as.Date("2020-03-11")+14,
+                           1,
+                           df_loop$step)
+  } 
+
+  if (df %in% c("topics_per_day_7", "topics_per_day_9")) {
+    df_loop$ramp <- ifelse(df_loop$post_created_date >= as.Date("2020-03-11") &
+                             df_loop$post_created_date <= as.Date("2020-03-11")+14,
+                           as.numeric(difftime(as.Date(df_loop$post_created_date),
+                                               as.Date("2020-03-11"), 
+                                               units = "days")),
+                           df_loop$ramp)
+  }
+ 
+  #May 19th
+  if (df %in% c("topics_per_day_1", "topics_per_day_3", "topics_per_day_9", "topics_per_day_10")) {
+    df_loop$pulse <- ifelse(df_loop$post_created_date == as.Date("2020-05-19"), 
+                            1, 
+                            df_loop$pulse)
+  } 
   
-  loop_tidy$val <- val
-  zero_model_health_control <- rbind(zero_model_health_control, loop_tidy) #Adding results to final DF
-      
-  loop_part2 <- loop %>%
-     filter(val_binary == 0) #Only keeping non-zero values
+  if (df %in% c("topics_per_day_4", "topics_per_day_5", "topics_per_day_7", "topics_per_day_8")) {
+    df_loop$step <- ifelse(df_loop$post_created_date >= as.Date("2020-05-19") &
+                             df_loop$post_created_date <= as.Date("2020-05-19")+14,
+                           1,
+                           df_loop$step)
+  } 
+
+  if (df %in% c("topics_per_day_5", "topics_per_day_6", "topics_per_day_11")) {
+    df_loop$ramp <- ifelse(df_loop$post_created_date >= as.Date("2020-05-19") &
+                             df_loop$post_created_date <= as.Date("2020-05-19")+14,
+                           as.numeric(difftime(as.Date(df_loop$post_created_date),
+                                               as.Date("2020-05-19"), 
+                                               units = "days")),
+                           df_loop$ramp)
+  }
+
+  #October 2nd
+  if (df %in% c("topics_per_day_1", "topics_per_day_4", "topics_per_day_7", "topics_per_day_8", "topics_per_day_9")) {
+    df_loop$pulse <- ifelse(df_loop$post_created_date == as.Date("2020-10-02"), 
+                            1, 
+                            df_loop$pulse)
+  } 
   
-  if (length(unique(loop_part2$lda_topic_renamed)) == 1) { #Checking that both types of labels are in the filtered data set
-     next
-   }
-  loop_tidy_part2 <- lm(get(val) ~ lda_topic_renamed,
-                    data = loop_part2) %>%
-     tidy(conf.int = TRUE) %>%
-     select(term, estimate, conf.low, conf.high, p.value)
-   
-  loop_tidy_part2$val <- val
-  nonzero_model_health_control <- rbind(nonzero_model_health_control, loop_tidy_part2)   
-}
+  if (df %in% c("topics_per_day_1", "topics_per_day_5", "topics_per_day_10")) {
+    df_loop$step <- ifelse(df_loop$post_created_date >= as.Date("2020-10-02") &
+                             df_loop$post_created_date <= as.Date("2020-10-02")+14,
+                           1,
+                           df_loop$step)
+  } 
 
+  if (df %in% c("topics_per_day_2", "topics_per_day_3", "topics_per_day_5", "topics_per_day_6", "topics_per_day_11")) {
+    df_loop$ramp <- ifelse(df_loop$post_created_date >= as.Date("2020-10-02") &
+                             df_loop$post_created_date <= as.Date("2020-10-02")+14,
+                           as.numeric(difftime(as.Date(df_loop$post_created_date),
+                                               as.Date("2020-10-02"), 
+                                               units = "days")),
+                           df_loop$ramp)
+  }
 
-zero_model_health_control_to_export <- zero_model_health_control %>%
-  filter(term != "(Intercept)") %>%
-       mutate(estimate = round(estimate, 2),
-              conf.low = round(conf.low, 2),
-              conf.high = round(conf.high, 2),
-              p.value.adjust = p.adjust(p.value,
-                                        n = nrow(zero_model_health_control),
-                                        method = "fdr"),
-              p.value.adjust = round(p.value.adjust, 3))
-
-nonzero_model_health_control_to_export <- nonzero_model_health_control %>%
-    filter(term != "(Intercept)") %>%
-       mutate(estimate = round(estimate, 2),
-              conf.low = round(conf.low, 2),
-              conf.high = round(conf.high, 2),
-              p.value.adjust = p.adjust(p.value,
-                                        n = nrow(zero_model_health_control),
-                                        method = "fdr"),
-              p.value.adjust = round(p.value.adjust, 3))
-setwd("~/Documents/dartmouth/research/aim3_facebook_covid19_obesity/data")
-write.csv(nonzero_model_health_control_to_export, "220218_nonzero_model_health_control_to_export_facebook.csv")
-write.csv(zero_model_health_control_to_export, "220218_zero_model_health_control_to_export_facebook.csv")
-
-```
-
-## Plot for Select Summary Dimensions
-- Analytic, Clout, Authenticity, Tone,
-- Word Count,  Words Per Sentence, Words Greater Than Six Letters, Dictionary Words
-- Affect Words, Social Words, Core Drives and Needs, Compound
-- Cognitive Processes, Perceptual Processes, Biological Processes, Informal Speech, 
-- Function Words, Punctuation
-## Option 1: Heat Map
-```{r}
-nonzero_model_health_control_to_export %>%
-  mutate(term_plot = gsub("lda_topic_renamedTopic: ", "", term),
-         term_plot = factor(term_plot, levels = c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14")),
-         estimate_plot = (estimate - mean(estimate, na.rm = TRUE)) / sd(estimate, na.rm = TRUE),
-         facet_plot = case_when(
-           val %in% c("neg", "neu", "pos", "compound") ~ "VADER",
-           val %in% c("analytic", "clout", "authentic", "tone") ~ "Summary",
-           val %in% c("wps", "dic", "sixltr", "wc") ~ "General",
-           val %in% c("pronoun", "ppron", "i", "we", "you", "shehe", "they", "ipron") ~ "Pronouns",
-           val %in% c("function", "article", "prep", "auxverb", "adverb", "conj", "negate") ~ "Function",
-           val %in% c("verb", "adj", "compare", "interrog", "number", "quant") ~ "Other Grammar",
-           val %in% c("affect", "posemo", "negemo", "anx", "anger", "sad_2") ~ "Affective Processes",
-           val %in% c("social", "family", "friend", "female", "male") ~ "Social Processes", 
-           val %in% c("cogproc", "insight", "cause", "discrep", "tentat", "certain", "differ") ~ "Cognitive Processes",
-           val %in% c("percept", "see", "hear", "feel") ~ "Perceptual Processes",
-           val %in% c("bio", "body", "health", "sexual", "ingest") ~ "Biological Processes",
-           val %in% c("drives", "affiliation", "achieve", "power", "reward", "risk") ~ "Core Drives and Needs", 
-           val %in% c("focuspast", "focuspresent", "focusfuture") ~ "Time Orientation",
-           val %in% c("relativ", "motion", "space", "time") ~ "Relativity",
-           val %in% c("work", "leisure", "home", "money", "relig", "death") ~ "Personal Concerns",
-           val %in% c("informal", "swear", "netspeak", "assent", "nonflu", "filler") ~ "Informal Language",
-           val %in% c("all_punc", "period", "comma", "colon", "semi_c", "q_mark") ~ "Punctuation - 1",
-           val %in% c("exclam", "dash", "quote", "apostro", "parenth", "other_p") ~ "Punctuation - 2"),
-         facet_plot = factor(facet_plot, 
-                             levels = c("VADER", "Summary", "General", "Function", "Other Grammar", "Pronouns", "Affective Processes", "Social Processes", "Cognitive Processes", "Perceptual Processes", "Biological Processes", "Core Drives and Needs", "Time Orientation", "Relativity", "Personal Concerns", "Informal Language", "Punctuation - 1", "Punctuation - 2"))) %>%
+df_loop_transfer <- df_loop %>%
+  mutate(jan_20_range = case_when(post_created_date >= as.Date("2020-01-20") - 14 & post_created_date <= as.Date("2020-01-20") + 14 ~ 1,
+                                  TRUE ~ 0),
+         mar_11_range = case_when(post_created_date >= as.Date("2020-03-11") - 14 & post_created_date <= as.Date("2020-03-11") + 14 ~ 1,
+                                  TRUE ~ 0),
+         may_19_range = case_when(post_created_date >= as.Date("2020-05-19") - 14 & post_created_date <= as.Date("2020-05-19") + 14 ~ 1,
+                                  TRUE ~ 0),
+         oct_02_range = case_when(post_created_date >= as.Date("2020-10-02") - 14 & post_created_date <= as.Date("2020-10-02") + 14 ~ 1,
+                                  TRUE ~ 0),
+         jan20_pulse = jan_20_range*pulse,
+         jan20_step = jan_20_range*step,
+         jan20_ramp = jan_20_range*ramp,
+         mar11_pulse = mar_11_range*pulse,
+         mar11_step = mar_11_range*step,
+         mar11_ramp = mar_11_range*ramp,
+         may19_pulse = may_19_range*pulse,
+         may19_step = may_19_range*step,
+         may19_ramp = may_19_range*ramp,
+         oct02_pulse = oct_02_range*pulse,
+         oct02_step = oct_02_range*step,
+         oct02_ramp = oct_02_range*ramp) %>%
   ungroup() %>%
-  #filter(!(val %in% c("filler")) &
-  #         !(facet_plot %in% c("Summary", "General"))) %>%
-  ggplot(aes(x = term_plot,
-             y = val,
-             fill = estimate_plot)) + 
-  geom_tile() +
-  facet_wrap(~facet_plot, scales = "free_y", ncol = 4) + 
-  theme_classic() + 
-  theme(legend.position = "bottom",
-        axis.text.x = element_text(size = 6,
-                                   angle = 90,
-                                   hjust = 1),
-        axis.text.y = element_text(size = 6),
-        strip.text.x = element_text(size = 7)) +
-  scale_y_discrete(limits = rev) + 
-  scale_fill_gradient2(limits = c(-3.5, 3.5)) +
-  labs(x = "Topic",
-       y = "Term",
-       fill = "Standardized Estimate",
-       title = "Standardized Coefficient of Semicontinuous Hurdle Models\nHealth Control")
-setwd("~/Documents/dartmouth/research/aim3_facebook_covid19_obesity/figures")
-ggsave("220223_standardized_hurdle_health_control.tiff",
-       width = 8.5,
-       height = 5.29)
-```
+  select(jan20_pulse, jan20_step, jan20_ramp, mar11_pulse, mar11_step, mar11_ramp, may19_pulse, may19_step, may19_ramp, oct02_pulse, oct02_step, oct02_ramp) %>% 
+  select(which(!colSums(., na.rm=TRUE) %in% 0))
 
-## Option 2: Dot Plot
-```{r}
-nonzero_model_health_control_to_export %>%
-  filter(val %in% c("analytic", "clout", "authentic", "tone", "wc", "wps", "sixltr", "dic", "affect", "social", "drives", "compound", "cogproc", "percept", "bio", "informal", "function", "allpunc")) %>%
-  mutate(term_plot = gsub("lda_topic_renamedTopic: ", "", term),
-         term_plot = as.numeric(term_plot),
-         val_reordered = factor(val, levels = c("analytic", "clout", "authenticity", "tone", "wc", "wps", "sixltr", "dic", "affect", "social", "drives", "compound", "cogproc", "percept", "bio", "informal", "function", "allpunc")),
-         color_plot = ifelse(p.value.adjust > 0.05, "Not Significant", "Significant")) %>%
-  ggplot(aes(x = term_plot, 
-             y = estimate,
-             color = color_plot)) +
-  geom_point(size = 0.2) +
-  geom_errorbar(aes(ymin=conf.low, 
-                    ymax=conf.high)) +
-  geom_hline(yintercept = 0,
-             linetype = "dashed") + 
-  facet_wrap(~val, scales = "free_y") +
-  theme_classic() +
-  theme(legend.position = "none")
-```
-
-# Non-Health Control
-```{r}
-liwc_vader <- colnames(obesity)[c(356:359, 403:495)]
-
-non_health_control$lda_topic_renamed <- "Non Health Control"
-
-zero_model_non_health_control <- NULL
-nonzero_model_non_health_control <- NULL
-
-for (val in liwc_vader) {
-  print(val)
-  obesity_loop <- obesity %>%
-    select(val, lda_topic_renamed)
-  
-  non_health_control_loop <- non_health_control %>%
-    select(val, lda_topic_renamed)
-  
-  loop <- rbind(obesity_loop, non_health_control_loop)
-  
-  if (min(loop[,1], na.rm = TRUE) > 0) { #Checking that at least one 0 in the data
-    next 
-  }
-  
-  loop$val_binary <- ifelse(loop[,1] > 0, 0, 1) #Binary yes/no for zeros, above 0 is 0, zero is 1
-  loop_tidy <- glm(val_binary ~ lda_topic_renamed,
-                   data = loop,
-                   family = binomial(link = "logit")) %>%
-    tidy(conf.int = TRUE) %>%
-    select(term, estimate, conf.low, conf.high, p.value) #Zero-inflated model
-  
-  loop_tidy$val <- val
-  zero_model_non_health_control <- rbind(zero_model_non_health_control, loop_tidy) #Adding results to final DF
-      
-  loop_part2 <- loop %>%
-     filter(val_binary == 0) #Only keeping non-zero values
-  
-  if (length(unique(loop_part2$lda_topic_renamed)) == 1) { #Checking that both types of labels are in the filtered data set
-     next
-   }
-  loop_tidy_part2 <- lm(get(val) ~ lda_topic_renamed,
-                    data = loop_part2) %>%
-     tidy(conf.int = TRUE) %>%
-     select(term, estimate, conf.low, conf.high, p.value)
-   
-  loop_tidy_part2$val <- val
-  nonzero_model_non_health_control <- rbind(nonzero_model_non_health_control, loop_tidy_part2)   
+  loop_model <- auto.arima(dat_ts_loop,
+                         xreg = as.matrix(df_loop_transfer),
+                         stepwise = FALSE,
+                         max.order = 10)
+  print(df)
+  print(arimaorder(loop_model))
+  print(loop_model$coef)
+  print(confint(loop_model))
+  print((1-pnorm(abs(loop_model$coef)/sqrt(diag(loop_model$var.coef))))*2)
+  print("**********")
 }
 
-
-zero_model_non_health_control_to_export <- zero_model_non_health_control %>%
-  filter(term != "(Intercept)") %>%
-       mutate(estimate = round(estimate, 2),
-              conf.low = round(conf.low, 2),
-              conf.high = round(conf.high, 2),
-              p.value.adjust = p.adjust(p.value,
-                                        n = nrow(zero_model_non_health_control),
-                                        method = "fdr"),
-              p.value.adjust = round(p.value.adjust, 3))
-
-nonzero_model_non_health_control_to_export <- nonzero_model_non_health_control %>%
-    filter(term != "(Intercept)") %>%
-       mutate(estimate = round(estimate, 2),
-              conf.low = round(conf.low, 2),
-              conf.high = round(conf.high, 2),
-              p.value.adjust = p.adjust(p.value,
-                                        n = nrow(zero_model_non_health_control),
-                                        method = "fdr"),
-              p.value.adjust = round(p.value.adjust, 3))
-setwd("~/Documents/dartmouth/research/aim3_facebook_covid19_obesity/data")
-write.csv(nonzero_model_non_health_control_to_export, "220201_nonzero_model_non_health_control_to_export_facebook.csv")
-write.csv(zero_model_non_health_control_to_export, "220201_zero_model_non_health_control_to_export_facebook.csv")
-
 ```
-
-## Heat Map Visualization
-```{r}
-nonzero_model_non_health_control_to_export %>%
-  group_by(val) %>%
-  mutate(term_plot = gsub("lda_topic_renamedTopic: ", "", term),
-         term_plot = factor(term_plot, levels = c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14")),
-         estimate_plot = (estimate - mean(estimate, na.rm = TRUE)) / sd(estimate, na.rm = TRUE),
-         facet_plot = case_when(
-           val %in% c("neg", "neu", "pos", "compound") ~ "VADER",
-           val %in% c("analytic", "clout", "authentic", "tone") ~ "Summary",
-           val %in% c("wps", "dic", "sixltr", "wc") ~ "General",
-           val %in% c("pronoun", "ppron", "i", "we", "you", "shehe", "they", "ipron") ~ "Pronouns",
-           val %in% c("function", "article", "prep", "auxverb", "adverb", "conj", "negate") ~ "Function",
-           val %in% c("verb", "adj", "compare", "interrog", "number", "quant") ~ "Other Grammar",
-           val %in% c("affect", "posemo", "negemo", "anx", "anger", "sad_2") ~ "Affective Processes",
-           val %in% c("social", "family", "friend", "female", "male") ~ "Social Processes", 
-           val %in% c("cogproc", "insight", "cause", "discrep", "tentat", "certain", "differ") ~ "Cognitive Processes",
-           val %in% c("percept", "see", "hear", "feel") ~ "Perceptual Processes",
-           val %in% c("bio", "body", "health", "sexual", "ingest") ~ "Biological Processes",
-           val %in% c("drives", "affiliation", "achieve", "power", "reward", "risk") ~ "Core Drives and Needs", 
-           val %in% c("focuspast", "focuspresent", "focusfuture") ~ "Time Orientation",
-           val %in% c("relativ", "motion", "space", "time") ~ "Relativity",
-           val %in% c("work", "leisure", "home", "money", "relig", "death") ~ "Personal Concerns",
-           val %in% c("informal", "swear", "netspeak", "assent", "nonflu", "filler") ~ "Informal Language",
-           val %in% c("all_punc", "period", "comma", "colon", "semi_c", "q_mark") ~ "Punctuation - 1",
-           val %in% c("exclam", "dash", "quote", "apostro", "parenth", "other_p") ~ "Punctuation - 2"),
-         facet_plot = factor(facet_plot, 
-                             levels = c("VADER", "Summary", "General", "Function", "Other Grammar", "Pronouns", "Affective Processes", "Social Processes", "Cognitive Processes", "Perceptual Processes", "Biological Processes", "Core Drives and Needs", "Time Orientation", "Relativity", "Personal Concerns", "Informal Language", "Punctuation - 1", "Punctuation - 2"))) %>%
-  ggplot(aes(x = term_plot,
-             y = val,
-             fill = estimate_plot)) + 
-  geom_tile() +
-  facet_wrap(~facet_plot, scales = "free_y", ncol = 6) + 
-  theme_classic() + 
-  theme(legend.position = "bottom",
-        axis.text.x = element_text(size = 4,
-                                   angle = 90,
-                                   hjust = 1),
-        axis.text.y = element_text(size = 8),
-        strip.text.x = element_text(size = 5)) +
-  scale_y_discrete(limits = rev) + 
-  scale_fill_gradient2(limits = c(-3.5, 3.5)) +
-  labs(x = "Topic",
-       y = "Term",
-       fill = "Standardized Estimate",
-       title = "Standardized Coefficient of Semicontinuous Hurdle Models\nNon-Health Control")
-setwd("~/Documents/dartmouth/research/aim3_facebook_covid19_obesity/figures")
-ggsave("220201_standardized_hurdle_non_health_control.tiff",
-       width = 8.5,
-       height = 5.29)
-```
-

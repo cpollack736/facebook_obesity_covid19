@@ -116,11 +116,15 @@ arima_its <- function(its_date,
     print(paste0("Running with differencing of ", difference))
       model_func <- auto.arima(dat_ts,
                                d = difference, #Considers differencing data
-                               xreg = transfer)
+                               xreg = transfer,
+                               stepwise = FALSE,
+                               max.order = 10)
   } else {
     print("Running with no differencing")
       model_func <- auto.arima(dat_ts,
-                               xreg = transfer)
+                               xreg = transfer,
+                               stepwise = FALSE,
+                               max.order = 10)
   }
 
   #print(Box.test(model_func$residuals, 
@@ -130,6 +134,90 @@ arima_its <- function(its_date,
   print(confint(model_func))
   print((1-pnorm(abs(model_func$coef)/sqrt(diag(model_func$var.coef))))*2)
 }
+```
+
+## ARIMA-ITS - Fixed Parameters
+```{r}
+## Note: This function assumes that p,d, and q parameters have already been found in a prior step
+
+arima_its_fixed_pq <- function(its_date, 
+                      dat, 
+                      difference = NA,
+                      pulse = FALSE,
+                      step = FALSE,
+                      ramp = FALSE,
+                      post_or_interaction = "post",
+                      p = NA,
+                      d = NA,
+                      q = NA) {
+  print(difference)
+  first_date = as.Date(its_date) - 14
+  last_date = as.Date(its_date) + 14
+  
+  dat_filtered <- dat %>%
+      dplyr::filter(post_created_date >= first_date &
+                    post_created_date <= last_date)
+  
+  date_seq <- seq.Date(from = as.Date(first_date),
+                         length.out = nrow(dat_filtered),
+                         by = 1)
+
+  if (post_or_interaction == "post") {
+      dat_ts <- ts(as.numeric(dat_filtered$posts_per_day), 
+                              start = first_date,
+                              frequency = 365)
+
+  } else {
+      dat_ts <- ts(as.numeric(dat_filtered$interactions_per_day), 
+                                   start = first_date,
+                                   frequency = 365)
+  }
+  
+  #print(adf.test(dat_ts)) #Stationary data if significant (we want stationary)
+
+## Step Parameter
+  transfer <- c()
+  if (step == TRUE) {
+    dat_step <- ifelse(date_seq >= its_date, 1, 0)
+    transfer <- cbind(transfer, dat_step)
+  }
+
+## Ramp Parameter
+  if (ramp == TRUE) {
+    dat_step <- ifelse(date_seq >= its_date, 1, 0)
+    dat_ramp <- append(rep(0,
+                         length(which(dat_step == 0))),
+                     seq(1,
+                         length(which(dat_step == 1)),
+                         1))
+    transfer <- cbind(transfer, dat_ramp)
+  }
+## Pulse Parameter
+  if (pulse == TRUE) {
+    dat_pulse <- ifelse(date_seq == its_date, 1, 0)
+    transfer <- cbind(transfer, dat_pulse)
+  }
+
+  if (!is.na(difference)) {
+    print(paste0("Running with differencing of ", difference))
+      model_func <- Arima(dat_ts,
+                          order = c(p, difference, q),
+                          xreg = transfer)
+  } else {
+    print("Running with no differencing")
+      model_func <- Arima(dat_ts,
+                          order = c(p, 0, q),
+                          xreg = transfer)
+  }
+
+  #print(Box.test(model_func$residuals, 
+  #         type = "Ljung-Box")) 
+
+  print(summary(model_func))
+  print(confint(model_func))
+  print((1-pnorm(abs(model_func$coef)/sqrt(diag(model_func$var.coef))))*2)
+}
+
 ```
 
 # Data
@@ -159,6 +247,9 @@ clarinet_count_per_day_instagram <- clarinet_instagram %>%
   group_by(post_created_date) %>%
   summarise(posts_per_day = n()) %>%
   mutate(data_set = "Non-Health Comparator")
+
+all_count_per_day <- rbind(obesity_count_per_day_instagram, headaches_count_per_day_instagram, clarinet_count_per_day_instagram)
+
 ```
 
 ## Checking for Differencing Need
@@ -269,8 +360,7 @@ for (df in dfs_posts) {
   print(df)
   arima_its(as.Date("2020-05-19"),
             get(df),
-            pulse = TRUE,
-            ramp = TRUE)
+            pulse = TRUE)
 }
 
 # October 2nd
@@ -279,6 +369,57 @@ for (df in dfs_posts) {
     arima_its(as.Date("2020-10-02"),
               get(df),
               pulse = TRUE)
+}
+```
+
+## Repeat with fixed p,q
+January 20th: p = 0, q = 1
+March 11th: p = 4, q = 0
+May 19th: p = 0, q = 0
+October 2nd: p = 3, q = 0
+```{r}
+# January 20th
+for (df in dfs_posts) {
+  print(df)
+  arima_its_fixed_pq(as.Date("2020-01-20"),
+            get(df),
+            pulse = TRUE,
+            p = 0, q = 1)
+}
+
+# March 11th
+for (df in dfs_posts) {
+  print(df)
+  if (df == "obesity_count_per_day_instagram") {
+    arima_its_fixed_pq(as.Date("2020-03-11"),
+              get(df), 
+              difference = 2, 
+              pulse = TRUE,
+              p = 4, q = 0)
+  } else {
+    arima_its_fixed_pq(as.Date("2020-03-11"),
+              get(df), 
+              pulse = TRUE,
+              p = 4, q = 0)
+  }
+}
+
+# May 19th
+for (df in dfs_posts) {
+  print(df)
+  arima_its_fixed_pq(as.Date("2020-05-19"),
+            get(df),
+            pulse = TRUE,
+            p = 0, q = 0)
+}
+
+# October 2nd
+for (df in dfs_posts) {
+  print(df)
+    arima_its_fixed_pq(as.Date("2020-10-02"),
+              get(df),
+              pulse = TRUE,
+              p = 3, q = 0)
 }
 ```
 
@@ -307,6 +448,9 @@ clarinet_interaction_per_day <- clarinet_instagram %>%
   group_by(post_created_date) %>%
   summarise(interactions_per_day = sum(total_interactions_numeric, na.rm = TRUE)) %>%
   mutate(data_set = "Non-Health Comparator")
+
+all_interactions_per_day <- rbind(obesity_interaction_per_day, headaches_interaction_per_day, clarinet_interaction_per_day)
+
 ```
 
 ## Checking for Differencing Need
@@ -385,7 +529,7 @@ for (df in dfs_posts) {
     arima_its(as.Date("2020-01-20"),
               get(df),
               post_or_interaction = "interactions", 
-              step = TRUE)
+              ramp = TRUE)
 }
 
 # March 11th
@@ -394,7 +538,7 @@ for (df in dfs_posts) {
   arima_its(as.Date("2020-03-11"), 
             get(df), 
             post_or_interaction = "interactions", 
-              ramp = TRUE)
+            ramp = TRUE)
 }
 
 # May 19th
@@ -403,7 +547,7 @@ for (df in dfs_posts) {
   arima_its(as.Date("2020-05-19"), 
             get(df),
             post_or_interaction = "interactions", 
-              pulse = TRUE, step = TRUE)
+            pulse = TRUE, step = TRUE)
 }
 
 # October 2nd
@@ -414,6 +558,308 @@ for (df in dfs_posts) {
               post_or_interaction = "interactions", 
               pulse = TRUE)
 }
+```
+
+## Repeating with fixed p q
+January 20th: p = 0, q = 0
+March 11th: p = 0, q = 0
+May 19th: p = 0, q = 0
+October 2nd: p = 2, q = 0
+No differencing
+```{r}
+# January 20th
+for (df in dfs_posts) {
+  print(df)
+    arima_its_fixed_pq(as.Date("2020-01-20"),
+              get(df),
+              post_or_interaction = "interactions", 
+              ramp = TRUE,
+              p = 0, q = 0)
+}
+
+# March 11th
+for (df in dfs_posts) {
+  print(df)
+  arima_its_fixed_pq(as.Date("2020-03-11"), 
+            get(df), 
+            post_or_interaction = "interactions", 
+            ramp = TRUE,
+            p = 0, q = 0)
+}
+
+# May 19th
+for (df in dfs_posts) {
+  print(df)
+  arima_its_fixed_pq(as.Date("2020-05-19"), 
+            get(df),
+            post_or_interaction = "interactions", 
+            pulse = TRUE, step = TRUE,
+            p = 0, q = 0)
+}
+
+# October 2nd
+for (df in dfs_posts) {
+  print(df)
+    arima_its_fixed_pq(as.Date("2020-10-02"), 
+              get(df),
+              post_or_interaction = "interactions", 
+              pulse = TRUE,
+              p = 2, q = 0)
+}
+```
+
+# Combining Into One Model
+## Posts
+### Obesity Data
+```{r}
+all_count_per_day_restricted <- all_count_per_day %>%
+  filter(post_created_date >= as.Date("2020-01-20") - 14 &
+           post_created_date <= as.Date("2020-10-02") + 14) %>%
+  mutate(pulse = case_when(
+    post_created_date %in% c(as.Date("2020-01-20"), ("2020-03-11"), as.Date("2020-05-19"), as.Date("2020-10-02")) ~ 1,
+    TRUE ~ 0),
+    is_obesity = case_when(
+      data_set == "Obesity" ~ 1,
+      TRUE ~ 0),
+    is_health_control = case_when(
+      data_set == "Health Comparator" ~ 1,
+      TRUE ~ 0),
+    is_non_health_control = case_when(
+      data_set == "Non-Health Comparator" ~ 1,
+      TRUE ~ 0))
+
+obesity_count_per_day_restricted <- all_count_per_day_restricted %>%
+  filter(is_obesity == 1)
+
+obesity_dat_ts <- ts(as.numeric(obesity_count_per_day_restricted$posts_per_day), start = min(obesity_count_per_day_restricted$post_created_date),
+                     frequency = 365)
+
+obesity_count_per_day_restricted_transfer <- obesity_count_per_day_restricted %>%
+  mutate(jan_20_range = case_when(post_created_date >= as.Date("2020-01-20") - 14 & post_created_date <= as.Date("2020-01-20") + 14 ~ 1,
+                                  TRUE ~ 0),
+         mar_11_range = case_when(post_created_date >= as.Date("2020-03-11") - 14 & post_created_date <= as.Date("2020-03-11") + 14 ~ 1,
+                                  TRUE ~ 0),
+         may_19_range = case_when(post_created_date >= as.Date("2020-05-19") - 14 & post_created_date <= as.Date("2020-05-19") + 14 ~ 1,
+                                  TRUE ~ 0),
+         oct_02_range = case_when(post_created_date >= as.Date("2020-10-02") - 14 & post_created_date <= as.Date("2020-10-02") + 14 ~ 1,
+                                  TRUE ~ 0),
+         jan20_obesity_pulse = jan_20_range*pulse,
+         mar11_obesity_pulse = mar_11_range*pulse,
+         may19_obesity_pulse = may_19_range*pulse,
+         oct02_obesity_pulse = oct_02_range*pulse) %>%
+  select(jan20_obesity_pulse, mar11_obesity_pulse, may19_obesity_pulse, oct02_obesity_pulse)
+
+obesity_full_model <- auto.arima(obesity_dat_ts,
+                         xreg = as.matrix(obesity_count_per_day_restricted_transfer),
+                         stepwise = FALSE,
+                         trace = TRUE,
+                         max.order = 10)
+summary(obesity_full_model)
+print(confint(obesity_full_model))
+print((1-pnorm(abs(obesity_full_model$coef)/sqrt(diag(obesity_full_model$var.coef))))*2)
+```
+
+### Health Control
+```{r}
+health_count_per_day_restricted <- all_count_per_day_restricted %>%
+  filter(is_health_control == 1)
+
+health_dat_ts <- ts(as.numeric(health_count_per_day_restricted$posts_per_day), start = min(health_count_per_day_restricted$post_created_date),
+                     frequency = 365)
+
+health_count_per_day_restricted_transfer <- health_count_per_day_restricted %>%
+  mutate(jan_20_range = case_when(post_created_date >= as.Date("2020-01-20") - 14 & post_created_date <= as.Date("2020-01-20") + 14 ~ 1,
+                                  TRUE ~ 0),
+         mar_11_range = case_when(post_created_date >= as.Date("2020-03-11") - 14 & post_created_date <= as.Date("2020-03-11") + 14 ~ 1,
+                                  TRUE ~ 0),
+         may_19_range = case_when(post_created_date >= as.Date("2020-05-19") - 14 & post_created_date <= as.Date("2020-05-19") + 14 ~ 1,
+                                  TRUE ~ 0),
+         oct_02_range = case_when(post_created_date >= as.Date("2020-10-02") - 14 & post_created_date <= as.Date("2020-10-02") + 14 ~ 1,
+                                  TRUE ~ 0),
+         jan20_pulse = jan_20_range*pulse,
+         mar11_pulse = mar_11_range*pulse,
+         may19_pulse = may_19_range*pulse,
+         oct02_pulse = oct_02_range*pulse) %>%
+  select(jan20_pulse, mar11_pulse, may19_pulse, oct02_pulse)
+
+health_full_model <- auto.arima(health_dat_ts,
+                         xreg = as.matrix(health_count_per_day_restricted_transfer),
+                         stepwise = FALSE,
+                         trace = TRUE,
+                         max.order = 10)
+summary(health_full_model)
+print(confint(health_full_model))
+print((1-pnorm(abs(health_full_model$coef)/sqrt(diag(health_full_model$var.coef))))*2)
+```
+
+### Non-Health Control
+```{r}
+nonhealth_count_per_day_restricted <- all_count_per_day_restricted %>%
+  filter(is_non_health_control == 1)
+
+nonhealth_dat_ts <- ts(as.numeric(nonhealth_count_per_day_restricted$posts_per_day), start = min(nonhealth_count_per_day_restricted$post_created_date),
+                     frequency = 365)
+
+nonhealth_count_per_day_restricted_transfer <- nonhealth_count_per_day_restricted %>%
+  mutate(jan_20_range = case_when(post_created_date >= as.Date("2020-01-20") - 14 & post_created_date <= as.Date("2020-01-20") + 14 ~ 1,
+                                  TRUE ~ 0),
+         mar_11_range = case_when(post_created_date >= as.Date("2020-03-11") - 14 & post_created_date <= as.Date("2020-03-11") + 14 ~ 1,
+                                  TRUE ~ 0),
+         may_19_range = case_when(post_created_date >= as.Date("2020-05-19") - 14 & post_created_date <= as.Date("2020-05-19") + 14 ~ 1,
+                                  TRUE ~ 0),
+         oct_02_range = case_when(post_created_date >= as.Date("2020-10-02") - 14 & post_created_date <= as.Date("2020-10-02") + 14 ~ 1,
+                                  TRUE ~ 0),
+         jan20_pulse = jan_20_range*pulse,
+         mar11_pulse = mar_11_range*pulse,
+         may19_pulse = may_19_range*pulse,
+         oct02_pulse = oct_02_range*pulse) %>%
+  select(jan20_pulse, mar11_pulse, may19_pulse, oct02_pulse)
+
+nonhealth_full_model <- auto.arima(nonhealth_dat_ts,
+                         xreg = as.matrix(nonhealth_count_per_day_restricted_transfer),
+                         stepwise = FALSE,
+                         trace = TRUE,
+                         max.order = 10)
+summary(nonhealth_full_model)
+print(confint(nonhealth_full_model))
+print((1-pnorm(abs(nonhealth_full_model$coef)/sqrt(diag(nonhealth_full_model$var.coef))))*2)
+```
+
+## Interactions
+Jan 20 - Ramp
+March 11 - Ramp
+May 19 - Pulse Step
+October 2 - Pulse
+### Obesity Data
+```{r}
+all_int_per_day_restricted <- all_interactions_per_day %>%
+  filter(post_created_date >= as.Date("2020-01-20") - 14 &
+           post_created_date <= as.Date("2020-10-02") + 14) %>%
+  mutate(pulse = case_when(
+    post_created_date %in% c(as.Date("2020-05-19"), as.Date("2020-10-02")) ~ 1,
+    TRUE ~ 0),
+    
+    step = case_when(
+      (post_created_date >= as.Date("2020-05-19") &
+        post_created_date <= as.Date("2020-05-19") + 14) ~ 1,
+      TRUE ~ 0),
+    
+    ramp = case_when(
+      post_created_date >= as.Date("2020-01-20") &
+        post_created_date <= as.Date("2020-01-20") + 14 ~ as.numeric(difftime(as.Date(post_created_date), as.Date("2020-01-20"), units = "days")),
+      post_created_date >= as.Date("2020-03-11") &
+        post_created_date <= as.Date("2020-03-11") + 14 ~ as.numeric(difftime(as.Date(post_created_date), as.Date("2020-03-11"), units = "days")),
+
+      TRUE ~ 0),
+    
+    is_obesity = case_when(
+      data_set == "Obesity" ~ 1,
+      TRUE ~ 0),
+    is_health_control = case_when(
+      data_set == "Health Comparator" ~ 1,
+      TRUE ~ 0),
+    is_non_health_control = case_when(
+      data_set == "Non-Health Comparator" ~ 1,
+      TRUE ~ 0))
+
+obesity_int_per_day_restricted <- all_int_per_day_restricted %>%
+  filter(is_obesity == 1)
+
+obesity_dat_ts <- ts(as.numeric(obesity_int_per_day_restricted$interactions_per_day), start = min(obesity_int_per_day_restricted$post_created_date),
+                     frequency = 365)
+
+obesity_in_per_day_restricted_transfer <- obesity_int_per_day_restricted %>%
+  mutate(jan_20_range = case_when(post_created_date >= as.Date("2020-01-20") - 14 & post_created_date <= as.Date("2020-01-20") + 14 ~ 1,
+                                  TRUE ~ 0),
+         mar_11_range = case_when(post_created_date >= as.Date("2020-03-11") - 14 & post_created_date <= as.Date("2020-03-11") + 14 ~ 1,
+                                  TRUE ~ 0),
+         may_19_range = case_when(post_created_date >= as.Date("2020-05-19") - 14 & post_created_date <= as.Date("2020-05-19") + 14 ~ 1,
+                                  TRUE ~ 0),
+         oct_02_range = case_when(post_created_date >= as.Date("2020-10-02") - 14 & post_created_date <= as.Date("2020-10-02") + 14 ~ 1,
+                                  TRUE ~ 0),
+         jan20_ramp = jan_20_range*ramp,
+         mar11_ramp = mar_11_range*ramp,
+         may19_pulse = may_19_range*pulse,
+         may19_step = may_19_range*step,
+         oct02_pulse = oct_02_range*pulse) %>%
+  select(jan20_ramp, mar11_ramp, may19_pulse, may19_step, oct02_pulse)
+
+obesity_full_model <- auto.arima(obesity_dat_ts,
+                         xreg = as.matrix(obesity_in_per_day_restricted_transfer),
+                         stepwise = FALSE,
+                         trace = TRUE,
+                         max.order = 10)
+summary(obesity_full_model)
+print(confint(obesity_full_model))
+print((1-pnorm(abs(obesity_full_model$coef)/sqrt(diag(obesity_full_model$var.coef))))*2)
+```
+
+### Health Control
+```{r}
+health_int_per_day_restricted <- all_int_per_day_restricted %>%
+  filter(is_health_control == 1)
+
+health_dat_ts <- ts(as.numeric(health_int_per_day_restricted$interactions_per_day), start = min(health_int_per_day_restricted$post_created_date),
+                     frequency = 365)
+
+health_int_per_day_restricted_transfer <- health_int_per_day_restricted %>%
+  mutate(jan_20_range = case_when(post_created_date >= as.Date("2020-01-20") - 14 & post_created_date <= as.Date("2020-01-20") + 14 ~ 1,
+                                  TRUE ~ 0),
+         mar_11_range = case_when(post_created_date >= as.Date("2020-03-11") - 14 & post_created_date <= as.Date("2020-03-11") + 14 ~ 1,
+                                  TRUE ~ 0),
+         may_19_range = case_when(post_created_date >= as.Date("2020-05-19") - 14 & post_created_date <= as.Date("2020-05-19") + 14 ~ 1,
+                                  TRUE ~ 0),
+         oct_02_range = case_when(post_created_date >= as.Date("2020-10-02") - 14 & post_created_date <= as.Date("2020-10-02") + 14 ~ 1,
+                                  TRUE ~ 0),
+         jan20_ramp = jan_20_range*ramp,
+         mar11_ramp = mar_11_range*ramp,
+         may19_pulse = may_19_range*pulse,
+         may19_step = may_19_range*step,
+         oct02_pulse = oct_02_range*pulse) %>%
+  select(jan20_ramp, mar11_ramp, may19_pulse, may19_step, oct02_pulse)
+
+health_full_model <- auto.arima(health_dat_ts,
+                         xreg = as.matrix(health_int_per_day_restricted_transfer),
+                         stepwise = FALSE,
+                         trace = TRUE,
+                         max.order = 10)
+summary(health_full_model)
+print(confint(health_full_model))
+print((1-pnorm(abs(health_full_model$coef)/sqrt(diag(health_full_model$var.coef))))*2)
+```
+
+### Non-Health Control
+```{r}
+nonhealth_int_per_day_restricted <- all_int_per_day_restricted %>%
+  filter(is_non_health_control == 1)
+
+nonhealth_dat_ts <- ts(as.numeric(nonhealth_int_per_day_restricted$interactions_per_day), start = min(nonhealth_int_per_day_restricted$post_created_date),
+                     frequency = 365)
+
+nonhealth_int_per_day_restricted_transfer <- nonhealth_int_per_day_restricted %>%
+  mutate(jan_20_range = case_when(post_created_date >= as.Date("2020-01-20") - 14 & post_created_date <= as.Date("2020-01-20") + 14 ~ 1,
+                                  TRUE ~ 0),
+         mar_11_range = case_when(post_created_date >= as.Date("2020-03-11") - 14 & post_created_date <= as.Date("2020-03-11") + 14 ~ 1,
+                                  TRUE ~ 0),
+         may_19_range = case_when(post_created_date >= as.Date("2020-05-19") - 14 & post_created_date <= as.Date("2020-05-19") + 14 ~ 1,
+                                  TRUE ~ 0),
+         oct_02_range = case_when(post_created_date >= as.Date("2020-10-02") - 14 & post_created_date <= as.Date("2020-10-02") + 14 ~ 1,
+                                  TRUE ~ 0),
+         jan20_ramp = jan_20_range*ramp,
+         mar11_ramp = mar_11_range*ramp,
+         may19_pulse = may_19_range*pulse,
+         may19_step = may_19_range*step,
+         oct02_pulse = oct_02_range*pulse) %>%
+  select(jan20_ramp, mar11_ramp, may19_pulse, may19_step, oct02_pulse)
+
+nonhealth_full_model <- auto.arima(nonhealth_dat_ts,
+                         xreg = as.matrix(nonhealth_int_per_day_restricted_transfer),
+                         stepwise = FALSE,
+                         trace = TRUE,
+                         max.order = 10)
+summary(nonhealth_full_model)
+print(confint(nonhealth_full_model))
+print((1-pnorm(abs(nonhealth_full_model$coef)/sqrt(diag(nonhealth_full_model$var.coef))))*2)
 ```
 
 
