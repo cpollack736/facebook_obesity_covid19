@@ -123,7 +123,7 @@ View(obesity_topics %>%
   count())
 
 obesity_topics %<>%
-  filter(topics >= 2 & topics <= 14 & !(topics %in% c(8, 9, 11))) #17,907 posts
+  filter(topics >= 0 & topics <= 14 & !(topics %in% c(1, 2, 3, 10, 11))) #17,907 posts
 ```
 
 # Number of Posts per Topic
@@ -224,10 +224,10 @@ obesity_topics %>%
   labs(y = "Log (Base 10) Count",
        x = "Topic",
        title = "Distribution of Interactions by Type and Topic - Instagram")
-setwd("~/Documents/dartmouth/research/aim3_facebook_covid19_obesity/figures")
-ggsave("220304_interaction_distribution_instagram_facet.tiff",
-       width = 7.25,
-       height = 4.51)
+#setwd("~/Documents/dartmouth/research/aim3_facebook_covid19_obesity/figures")
+#ggsave("220304_interaction_distribution_instagram_facet.tiff",
+#       width = 7.25,
+#       height = 4.51)
 
 View(obesity_topics %>%
   group_by(topic_renamed) %>%
@@ -248,19 +248,31 @@ obesity_topics %>%
   group_by(topic_renamed, date_date) %>%
   summarise(count_per_day = n()) %>%
   mutate(topic_renamed = factor(topic_renamed,
-                                    levels = c("Topic: 2", "Topic: 3", "Topic: 4", "Topic: 5", "Topic: 6", "Topic: 7", "Topic: 10", "Topic: 12", "Topic: 13", "Topic: 14"))) %>%
+                                    levels = c("Topic: 0", "Topic: 4", "Topic: 5", "Topic: 6", "Topic: 7", "Topic: 8", "Topic: 9", "Topic: 12", "Topic: 13", "Topic: 14")),
+         topics_facet = case_when(
+           topic_renamed == "Topic: 0" ~ "Weight Loss Stories",
+           topic_renamed == "Topic: 4" ~ "Childhood Obesity",
+           topic_renamed == "Topic: 5" ~ "Bariatric Surgery",
+           topic_renamed == "Topic: 6" ~ "Sugar",
+           topic_renamed == "Topic: 7" ~ "COVID-19",
+           topic_renamed == "Topic: 8" ~ "Natural Supplements",
+           topic_renamed == "Topic: 9" ~ "Veganism",
+           topic_renamed == "Topic: 12" ~ "Weight Loss Program",
+           topic_renamed == "Topic: 13" ~ "Sleep",
+           topic_renamed == "Topic: 14" ~ "Fruits and Vegetables"
+         )) %>%
   filter(date_date >= as.Date("2020-01-06"),
          date_date <= as.Date("2020-10-16")) %>%
   ggplot(aes(x = date_date,
              y = count_per_day,
-             color = topic_renamed)) +
+             color = topics_facet)) +
   geom_line(size = 0.5) +
   geom_vline(xintercept = c(as.Date("2020-01-20"),
                             as.Date("2020-03-11"),
                             as.Date("2020-05-19"),
                             as.Date("2020-10-02")),
              linetype = "dashed") + 
-  facet_wrap(~topic_renamed) + 
+  facet_wrap(~topics_facet) + 
   scale_color_manual(values = c("#9E0142",
                                 "#D53E4F",
                                 "#F46D43",
@@ -277,7 +289,7 @@ obesity_topics %>%
        y = "Count",
        title = "Number of Posts per Topic Per Day - Instagram")
 setwd("~/Documents/dartmouth/research/aim3_facebook_covid19_obesity/figures")
-ggsave("220304_topics_per_day_facet_instagram.tiff",
+ggsave("220316_topics_per_day_facet_instagram.tiff",
        width = 7.25, 
        height = 4.51)
 ```
@@ -325,14 +337,14 @@ topics_per_day <- obesity_date_restricted %>%
   filter(!is.na(post_created_date))
 
 for (i in min(topics_per_day$topics):max(topics_per_day$topics)) {
-  if (i %in% c(8, 9, 11)) {
+  if (i %in% c(1, 2, 3, 10, 11)) {
     next
   }
   else {assign(paste0("topics_per_day_", i), topics_per_day %>%
            filter(topics == i))}
 }
 
-dfs <- c("topics_per_day_2", "topics_per_day_3", "topics_per_day_4", "topics_per_day_5", "topics_per_day_6", "topics_per_day_7") #Not running ARIMA on 12, 13, 14 -- too few posts
+dfs <- c("topics_per_day_0", "topics_per_day_4", "topics_per_day_5", "topics_per_day_6", "topics_per_day_7", "topics_per_day_8", "topics_per_day_9") #Not running ARIMA on 12, 13, 14 -- too few posts
 ```
 
 ### Checking Which Transfer Functions to Use
@@ -340,8 +352,8 @@ dfs <- c("topics_per_day_2", "topics_per_day_3", "topics_per_day_4", "topics_per
 aic_table <- NULL
 for (df in dfs) {
   for (d in list_of_its_dates) {
-    if (d == 18281 & df == "topics_per_day_6" |
-        d == 18332 & df == "topics_per_day_6") {
+    if (d == 18281 & df == "topics_per_day_7" |
+        d == 18332 & df %in% c("topics_per_day_7", "topics_per_day_9")) {
       next
     }
     print(as.Date(d))
@@ -394,11 +406,12 @@ for (df in dfs) {
   p = FALSE
   r = FALSE
   s = FALSE
-  if (df %in% c("topics_per_day_1")) {
+  if (df %in% c("topics_per_day_4", "topics_per_day_6", "topics_per_day_8", "topics_per_day_9")) {
     p = TRUE
-  } else {
+  } 
+  if (df %in% c("topics_per_day_0", "topics_per_day_4", "topics_per_day_5")) {
     r = TRUE
-  }
+  } 
   arima_its(as.Date("2020-01-20"),
             get(df),
             pulse = p,
@@ -412,11 +425,14 @@ for (df in dfs) {
   p = FALSE
   r = FALSE
   s = FALSE
-  if (df %in% c("topics_per_day_1")) {
-    r = TRUE
-  }
-  else {
+  if (df %in% c("topics_per_day_8")) {
     p = TRUE
+  }
+  if (df %in% c("topics_per_day_0", "topics_per_day_4", "topics_per_day_5")) {
+    s = TRUE
+  }
+  if (df %in% c("topics_per_day_6")) {
+    r = TRUE
   }
   arima_its(as.Date("2020-03-11"),
             get(df),
@@ -431,10 +447,13 @@ for (df in dfs) {
   p = FALSE
   r = FALSE
   s = FALSE
-  if (df %in% c("topics_per_day_1", "topics_per_day_2")) {
+  if (df %in% c("topics_per_day_6", "topics_per_day_8", "topics_per_day_9")) {
     p = TRUE
   }
-  if (df %in% c("topics_per_day_1")) {
+  if (df %in% c("topics_per_day_0", "topics_per_day_5")) {
+    s = TRUE
+  }
+  if (df %in% c("topics_per_day_4", "topics_per_day_7")) {
     r = TRUE
   }
   arima_its(as.Date("2020-05-19"),
@@ -450,10 +469,13 @@ for (df in dfs) {
   p = FALSE
   r = FALSE
   s = FALSE
-  if (df %in% c("topics_per_day_2")) {
+  if (df %in% c("topics_per_day_0", "topics_per_day_5")) {
     p = TRUE
   }
-  if (df %in% c("topics_per_day_1")) {
+  if (df %in% c("topics_per_day_4")) {
+    s = TRUE
+  }
+  if (df %in% c("topics_per_day_5", "topics_per_day_6", "topics_per_day_7", "topics_per_day_8", "topics_per_day_9")) {
     r = TRUE
   }
   arima_its(as.Date("2020-10-02"),

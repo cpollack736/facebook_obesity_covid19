@@ -26,7 +26,8 @@ library(RColorBrewer)
 # Data
 ```{r}
 setwd("~/Documents/dartmouth/research/aim3_facebook_covid19_obesity/data")
-obesity_topics <- fread("220304_obesity_with_topics.csv") %>%
+obesity_topics <- fread("220314_obesity_with_topics.csv") %>%
+  clean_names()
 ```
 
 # Function
@@ -163,7 +164,7 @@ View(obesity_topics %>%
   count())
 
 obesity_topics %<>%
-  filter(topics >= 1 & topics <= 11 & topics != 2) #17,907 posts
+  filter(topics >= 1 & topics <= 11 & topics != 4) #34,868 posts
 
 obesity_topics %<>%
   mutate(topic_renamed = paste0("Topic: ", topics))
@@ -218,10 +219,10 @@ obesity_topics %>%
   labs(x = "Log (Base 10) Interactions",
        y = "Topic Number",
        title = "Distribution of Interactions per BERTopic - Facebook")
-setwd("~/Documents/dartmouth/research/aim3_facebook_covid19_obesity/figures")
-ggsave("220303_interaction_distribution_facebook.tiff",
-       width = 7.25,
-       height = 4.51)
+#setwd("~/Documents/dartmouth/research/aim3_facebook_covid19_obesity/figures")
+#ggsave("220303_interaction_distribution_facebook.tiff",
+#       width = 7.25,
+#       height = 4.51)
 ```
 
 ## By Interaction Type
@@ -262,10 +263,10 @@ obesity_topics %>%
   labs(y = "Log (Base 10) Count",
        x = "Topic",
        title = "Distribution of Interactions by Type and Topic - Facebook")
-setwd("~/Documents/dartmouth/research/aim3_facebook_covid19_obesity/figures")
-ggsave("220304_interaction_distribution_facebook_facet.tiff",
-       width = 7.25,
-       height = 4.51)
+#setwd("~/Documents/dartmouth/research/aim3_facebook_covid19_obesity/figures")
+#ggsave("220304_interaction_distribution_facebook_facet.tiff",
+#       width = 7.25,
+#       height = 4.51)
 
 View(obesity_topics %>%
   group_by(topic_renamed) %>%
@@ -286,19 +287,31 @@ obesity_topics %>%
   group_by(topic_renamed, date_date) %>%
   summarise(count_per_day = n()) %>%
   mutate(topic_renamed = factor(topic_renamed,
-                                    levels = c("Topic: 1", "Topic: 3", "Topic: 4", "Topic: 5", "Topic: 6", "Topic: 7", "Topic: 8", "Topic: 9", "Topic: 10", "Topic: 11"))) %>%
+                                    levels = c("Topic: 1", "Topic: 2", "Topic: 3", "Topic: 5", "Topic: 6", "Topic: 7", "Topic: 8", "Topic: 9", "Topic: 10", "Topic: 11")),
+         topics_facet = case_when(
+           topic_renamed == "Topic: 1" ~ "Bariatric Surgery",
+           topic_renamed == "Topic: 2" ~ "Sleep",
+           topic_renamed == "Topic: 3" ~ "Keto Diet",
+           topic_renamed == "Topic: 5" ~ "COVID-19-a",
+           topic_renamed == "Topic: 6" ~ "COVID-19-b",
+           topic_renamed == "Topic: 7" ~ "Clickbait",
+           topic_renamed == "Topic: 8"~ "Weight Loss Stories",
+           topic_renamed == "Topic: 9" ~ "COVID-19 Vaccinations",
+           topic_renamed == "Topic: 10" ~ "Childhood Obesity",
+           topic_renamed == "Topic: 11" ~ "Type 2 Diabetes"
+         )) %>%
   filter(date_date >= as.Date("2020-01-06"),
          date_date <= as.Date("2020-10-08")) %>%
   ggplot(aes(x = date_date,
              y = count_per_day,
-             color = topic_renamed)) +
+             color = topics_facet)) +
   geom_line(size = 0.25) +
   geom_vline(xintercept = c(as.Date("2020-01-20"),
                             as.Date("2020-03-11"),
                             as.Date("2020-05-19"),
                             as.Date("2020-10-02")),
              linetype = "dashed") + 
-  facet_wrap(~topic_renamed,
+  facet_wrap(~topics_facet,
              scales = "free_y") + 
   scale_color_manual(values = c("#9E0142",
                                 "#D53E4F",
@@ -316,7 +329,7 @@ obesity_topics %>%
        y = "Count",
        title = "Number of Posts per Topic Per Day - Facebook")
 setwd("~/Documents/dartmouth/research/aim3_facebook_covid19_obesity/figures")
-ggsave("220304_topics_per_day_facet.tiff",
+ggsave("220315_topics_per_day_facet.tiff",
        width = 7.25, 
        height = 4.51)
 ```
@@ -326,7 +339,7 @@ ggsave("220304_topics_per_day_facet.tiff",
 obesity_date_restricted <- obesity_topics %>%
     filter(!is.na(post_created_date),
            post_created_date >= as.Date("2020-01-06"),
-           post_created_date <= as.Date("2020-10-08"))
+           post_created_date <= as.Date("2020-10-16"))
 
 View(obesity_topics %>%
   filter(page_category != "none") %>%
@@ -377,14 +390,14 @@ topics_per_day <- obesity_date_restricted %>%
   filter(!is.na(post_created_date))
 
 for (i in min(topics_per_day$topics):max(topics_per_day$topics)) {
-  if (i == 2) {
+  if (i == 4) {
     next
   }
   assign(paste0("topics_per_day_", i), topics_per_day %>%
            filter(topics == i))
 }
 
-dfs <- c("topics_per_day_1", "topics_per_day_3", "topics_per_day_4", "topics_per_day_5", "topics_per_day_6", "topics_per_day_7", "topics_per_day_8", "topics_per_day_9", "topics_per_day_10", "topics_per_day_11")
+dfs <- c("topics_per_day_1", "topics_per_day_2", "topics_per_day_3", "topics_per_day_5", "topics_per_day_6", "topics_per_day_7", "topics_per_day_8", "topics_per_day_9", "topics_per_day_10", "topics_per_day_11")
 ```
 
 ### Checking Which Transfer Functions to Use
@@ -392,6 +405,9 @@ dfs <- c("topics_per_day_1", "topics_per_day_3", "topics_per_day_4", "topics_per
 aic_table <- NULL
 for (df in dfs) {
   for (d in list_of_its_dates) {
+    if (d == 18281 & df %in% c("topics_per_day_5", "topics_per_day_6", "topics_per_day_9") | d == 18332 & df == "topics_per_day_9" | d == 18401 & df == "topics_per_day_9" | d == 18537 & df == "topics_per_day_9") {
+      next
+    }
     print(as.Date(d))
     print(df)
     aic_pulse = arima_its(d, get(df), pulse = TRUE, aic_only = TRUE)
@@ -442,13 +458,11 @@ for (df in dfs) {
   p = FALSE
   r = FALSE
   s = FALSE
-  if (df %in% c("topics_per_day_1", "topics_per_day_3", "topics_per_day_10", "topics_per_day_11", "topics_per_day_12", "topics_per_day_13", "topics_per_day_14")) {
+  if (df %in% c("topics_per_day_3", "topics_per_day_7", "topics_per_day_8", "topics_per_day_11")) {
     p = TRUE
   }
-  else if (df %in% c("topics_per_day_4", "topics_per_day_6", "topics_per_day_9")) {
+  if (df %in% c("topics_per_day_1", "topics_per_day_2", "topics_per_day_10")) {
     s = TRUE
-  } else {
-    r = TRUE
   }
   arima_its(as.Date("2020-01-20"),
             get(df),
@@ -463,13 +477,13 @@ for (df in dfs) {
   p = FALSE
   r = FALSE
   s = FALSE
-  if (df %in% c("topics_per_day_7", "topics_per_day_11", "topics_per_day_12")) {
+  if (df %in% c("topics_per_day_5", "topics_per_day_6", "topics_per_day_11")) {
     p = TRUE
   }
-  if (df %in% c("topics_per_day_1", "topics_per_day_2", "topics_per_day_4", "topics_per_day_8", "topics_per_day_12")) {
+  if (df %in% c("topics_per_day_1", "topics_per_day_2", "topics_per_day_3", "topics_per_day_6", "topics_per_day_7")) {
     s = TRUE
   }
-  if (df %in% c("topics_per_day_3", "topics_per_day_5", "topics_per_day_6", "topics_per_day_9", "topics_per_day_10", "topics_per_day_12", "topics_per_day_13", "topics_per_day_14")) {
+  if (df %in% c("topics_per_day_2", "topics_per_day_8", "topics_per_day_10")) {
     r = TRUE
   }
   arima_its(as.Date("2020-03-11"),
@@ -485,13 +499,13 @@ for (df in dfs) {
   p = FALSE
   r = FALSE
   s = FALSE
-  if (df %in% c("topics_per_day_2", "topics_per_day_3", "topics_per_day_4", "topics_per_day_5", "topics_per_day_6", "topics_per_day_7", "topics_per_day_8", "topics_per_day_9", "topics_per_day_10", "topics_per_day_12", "topics_per_day_13")) {
+  if (df %in% c("topics_per_day_3", "topics_per_day_6")) {
     p = TRUE
   }
-  if (df %in% c("topics_per_day_1", "topics_per_day_2", "topics_per_day_10", "topics_per_day_11", "topics_per_day_12", "topics_per_day_14")) {
+  if (df %in% c("topics_per_day_1", "topics_per_day_2", "topics_per_day_5", "topics_per_day_7", "topics_per_day_8", "topics_per_day_10", "topics_per_day_11")) {
     s = TRUE
   }
-  if (df %in% c("topics_per_day_1", "topics_per_day_2", "topics_per_day_4", "topics_per_day_11")) {
+  if (df %in% c("topics_per_day_5", "topics_per_day_11")) {
     r = TRUE
   }
   arima_its(as.Date("2020-05-19"),
@@ -507,13 +521,13 @@ for (df in dfs) {
   p = FALSE
   r = FALSE
   s = FALSE
-  if (df %in% c("topics_per_day_1", "topics_per_day_2", "topics_per_day_3", "topics_per_day_4", "topics_per_day_7", "topics_per_day_8", "topics_per_day_9", "topics_per_day_12", "topics_per_day_14")) {
+  if (df %in% c("topics_per_day_2", "topics_per_day_5", "topics_per_day_6", "topics_per_day_8")) {
     p = TRUE
   }
-  if (df %in% c("topics_per_day_1", "topics_per_day_2", "topics_per_day_5", "topics_per_day_6", "topics_per_day_7", "topics_per_day_11", "topics_per_day_13")) {
+  if (df %in% c("topics_per_day_8", "topics_per_day_10")) {
     s = TRUE
   }
-  if (df %in% c("topics_per_day_2", "topics_per_day_6", "topics_per_day_7", "topics_per_day_10")) {
+  if (df %in% c("topics_per_day_1", "topics_per_day_2", "topics_per_day_3", "topics_per_day_5", "topics_per_day_7", "topics_per_day_8", "topics_per_day_11")) {
     r = TRUE
   }
   arima_its(as.Date("2020-10-02"),
@@ -525,147 +539,3 @@ for (df in dfs) {
 
 ```
 
-### Running Models - Combined per Topic
-```{r}
-#for (df in dfs) {
-for (df in c("topics_per_day_3", "topics_per_day_8")) {
-  dat_ts_loop <- ts(as.numeric(unlist(get(df)["posts_per_day"])), 
-                   start = as.Date("2020-01-06"), #Hard coding since we know this is the consistent start date
-                   frequency = 365)
-
-  # January 20th pulse
-  df_loop <- get(df)
-  df_loop$pulse <- 0
-  df_loop$step <- 0
-  df_loop$ramp <- 0
-  
-  #January 20th
-  if (df %in% c("topics_per_day_5", "topics_per_day_6", "topics_per_day_8")) {
-    df_loop$pulse <- ifelse(df_loop$post_created_date == as.Date("2020-01-20"), 
-                            1, 
-                            df_loop$pulse)
-  } 
-  
-  if (df %in% c("topics_per_day_1", "topics_per_day_3", "topics_per_day_10")) {
-    df_loop$step <- ifelse(df_loop$post_created_date >= as.Date("2020-01-20") &
-                             df_loop$post_created_date <= as.Date("2020-01-20")+14,
-                           1,
-                           df_loop$step)
-  } 
-
-  if (df %in% c("topics_per_day_4", "topics_per_day_7", "topics_per_day_9", "topics_per_day_10", "topics_per_day_11")) {
-    df_loop$ramp <- ifelse(df_loop$post_created_date >= as.Date("2020-01-20") &
-                             df_loop$post_created_date <= as.Date("2020-01-20")+14,
-                           as.numeric(difftime(as.Date(df_loop$post_created_date),
-                                               as.Date("2020-01-20"), 
-                                               units = "days")),
-                           df_loop$ramp)
-  }
- 
-  #March 11th
-  if (df %in% c("topics_per_day_1", "topics_per_day_6", "topics_per_day_8")) {
-    df_loop$pulse <- ifelse(df_loop$post_created_date == as.Date("2020-03-11"), 
-                            1, 
-                            df_loop$pulse)
-  } 
-  
-  if (df %in% c("topics_per_day_3", "topics_per_day_4", "topics_per_day_5", "topics_per_day_7", "topics_per_day_10", "topics_per_day_11")) {
-    df_loop$step <- ifelse(df_loop$post_created_date >= as.Date("2020-03-11") &
-                             df_loop$post_created_date <= as.Date("2020-03-11")+14,
-                           1,
-                           df_loop$step)
-  } 
-
-  if (df %in% c("topics_per_day_7", "topics_per_day_9")) {
-    df_loop$ramp <- ifelse(df_loop$post_created_date >= as.Date("2020-03-11") &
-                             df_loop$post_created_date <= as.Date("2020-03-11")+14,
-                           as.numeric(difftime(as.Date(df_loop$post_created_date),
-                                               as.Date("2020-03-11"), 
-                                               units = "days")),
-                           df_loop$ramp)
-  }
- 
-  #May 19th
-  if (df %in% c("topics_per_day_1", "topics_per_day_3", "topics_per_day_9", "topics_per_day_10")) {
-    df_loop$pulse <- ifelse(df_loop$post_created_date == as.Date("2020-05-19"), 
-                            1, 
-                            df_loop$pulse)
-  } 
-  
-  if (df %in% c("topics_per_day_4", "topics_per_day_5", "topics_per_day_7", "topics_per_day_8")) {
-    df_loop$step <- ifelse(df_loop$post_created_date >= as.Date("2020-05-19") &
-                             df_loop$post_created_date <= as.Date("2020-05-19")+14,
-                           1,
-                           df_loop$step)
-  } 
-
-  if (df %in% c("topics_per_day_5", "topics_per_day_6", "topics_per_day_11")) {
-    df_loop$ramp <- ifelse(df_loop$post_created_date >= as.Date("2020-05-19") &
-                             df_loop$post_created_date <= as.Date("2020-05-19")+14,
-                           as.numeric(difftime(as.Date(df_loop$post_created_date),
-                                               as.Date("2020-05-19"), 
-                                               units = "days")),
-                           df_loop$ramp)
-  }
-
-  #October 2nd
-  if (df %in% c("topics_per_day_1", "topics_per_day_4", "topics_per_day_7", "topics_per_day_8", "topics_per_day_9")) {
-    df_loop$pulse <- ifelse(df_loop$post_created_date == as.Date("2020-10-02"), 
-                            1, 
-                            df_loop$pulse)
-  } 
-  
-  if (df %in% c("topics_per_day_1", "topics_per_day_5", "topics_per_day_10")) {
-    df_loop$step <- ifelse(df_loop$post_created_date >= as.Date("2020-10-02") &
-                             df_loop$post_created_date <= as.Date("2020-10-02")+14,
-                           1,
-                           df_loop$step)
-  } 
-
-  if (df %in% c("topics_per_day_2", "topics_per_day_3", "topics_per_day_5", "topics_per_day_6", "topics_per_day_11")) {
-    df_loop$ramp <- ifelse(df_loop$post_created_date >= as.Date("2020-10-02") &
-                             df_loop$post_created_date <= as.Date("2020-10-02")+14,
-                           as.numeric(difftime(as.Date(df_loop$post_created_date),
-                                               as.Date("2020-10-02"), 
-                                               units = "days")),
-                           df_loop$ramp)
-  }
-
-df_loop_transfer <- df_loop %>%
-  mutate(jan_20_range = case_when(post_created_date >= as.Date("2020-01-20") - 14 & post_created_date <= as.Date("2020-01-20") + 14 ~ 1,
-                                  TRUE ~ 0),
-         mar_11_range = case_when(post_created_date >= as.Date("2020-03-11") - 14 & post_created_date <= as.Date("2020-03-11") + 14 ~ 1,
-                                  TRUE ~ 0),
-         may_19_range = case_when(post_created_date >= as.Date("2020-05-19") - 14 & post_created_date <= as.Date("2020-05-19") + 14 ~ 1,
-                                  TRUE ~ 0),
-         oct_02_range = case_when(post_created_date >= as.Date("2020-10-02") - 14 & post_created_date <= as.Date("2020-10-02") + 14 ~ 1,
-                                  TRUE ~ 0),
-         jan20_pulse = jan_20_range*pulse,
-         jan20_step = jan_20_range*step,
-         jan20_ramp = jan_20_range*ramp,
-         mar11_pulse = mar_11_range*pulse,
-         mar11_step = mar_11_range*step,
-         mar11_ramp = mar_11_range*ramp,
-         may19_pulse = may_19_range*pulse,
-         may19_step = may_19_range*step,
-         may19_ramp = may_19_range*ramp,
-         oct02_pulse = oct_02_range*pulse,
-         oct02_step = oct_02_range*step,
-         oct02_ramp = oct_02_range*ramp) %>%
-  ungroup() %>%
-  select(jan20_pulse, jan20_step, jan20_ramp, mar11_pulse, mar11_step, mar11_ramp, may19_pulse, may19_step, may19_ramp, oct02_pulse, oct02_step, oct02_ramp) %>% 
-  select(which(!colSums(., na.rm=TRUE) %in% 0))
-
-  loop_model <- auto.arima(dat_ts_loop,
-                         xreg = as.matrix(df_loop_transfer),
-                         stepwise = FALSE,
-                         max.order = 10)
-  print(df)
-  print(arimaorder(loop_model))
-  print(loop_model$coef)
-  print(confint(loop_model))
-  print((1-pnorm(abs(loop_model$coef)/sqrt(diag(loop_model$var.coef))))*2)
-  print("**********")
-}
-
-```
