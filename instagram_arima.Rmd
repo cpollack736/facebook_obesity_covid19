@@ -223,7 +223,7 @@ arima_its_fixed_pq <- function(its_date,
 # Data
 ```{r}
 setwd("~/Documents/dartmouth/research/aim3_facebook_covid19_obesity/data")
-obesity_instagram <- fread("220106_obesity_instagram.csv") %>%
+obesity_instagram <- fread("220330_instagram_data_english_only.csv") %>%
   clean_names()
 headaches_instagram <- fread("220106_health_control_instagram.csv") %>%
   clean_names()
@@ -252,6 +252,47 @@ all_count_per_day <- rbind(obesity_count_per_day_instagram, headaches_count_per_
 
 ```
 
+## Plotting
+```{r}
+obesity_count_per_day_instagram %>%
+  dplyr::filter(post_created_date >= as.Date("2020-01-06") &
+           post_created_date <= as.Date("2020-10-16")) %>%
+  dplyr::mutate(color_plot = dplyr::case_when(
+    post_created_date >= as.Date("2020-01-20") - 14 &
+      post_created_date <= as.Date("2020-01-20") + 14 ~ "First US Case: Jan. 6 - Feb. 3",
+    post_created_date >= as.Date("2020-03-11") - 14 &
+      post_created_date <= as.Date("2020-03-11") + 14 ~ "COVID-19 Pandemic: Feb. 26 - Mar. 25",
+    post_created_date >= as.Date("2020-05-19") - 14 &
+      post_created_date <= as.Date("2020-05-19") + 14 ~ "Obesity + COVID-19: May 5 - June 2",
+    post_created_date >= as.Date("2020-10-02") - 14 &
+      post_created_date <= as.Date("2020-10-02") + 14 ~ "Trump + COVID-19: Sept. 18 - Oct. 16",
+    TRUE ~ ""),
+    color_plot = relevel(as.factor(color_plot), ref = "First US Case: Jan. 6 - Feb. 3")) %>%
+  filter(color_plot != "") %>%
+  ggplot(aes(x = post_created_date,
+             y = posts_per_day,
+             color = color_plot,
+             group = color_plot)) +
+  geom_line(size = 0.75) +
+  geom_vline(xintercept = c(as.Date("2020-01-20"), as.Date("2020-03-11"),  as.Date("2020-05-19"), as.Date("2020-10-02")),
+             linetype = "dashed") + 
+  theme_classic() +
+  facet_wrap(~color_plot, scales = "free_x") +
+  scale_color_manual(values = c("#4E79A7",
+                                "#F28E2B",
+                                "#B07AA1",
+                                "#FF9DA7")) +
+  scale_y_continuous(label = comma) + 
+  labs(x = "Date",
+       y = "Posts per Day",
+       title = "Distribution of Posts per Day Around Major News Stories - Instagram") +
+  theme(legend.position = "none")
+setwd("~/Documents/dartmouth/research/aim3_facebook_covid19_obesity/figures")
+ggsave("220403_interactions_per_day_instagram_facet.tiff",
+       width = 7.25, 
+       height = 4.51)
+```
+
 ## Checking for Differencing Need
 ```{r}
 list_of_its_dates <- c(as.Date("2020-01-20"),
@@ -273,13 +314,15 @@ for (d in list_of_its_dates) {
 ```
 
 ## Model Selection
-- March 11th: Lag 2
+- March 11th: Lag 3
+- May 19th: Lag 1
 - Everything Else: Lag 0
 ```{r}
-# Lag 2 March 11th, everything else 0 
 for (d in list_of_its_dates) {
   if (as.Date(d) == as.Date("2020-03-11")) {
-    diff = 2
+    diff = 3
+  } else if (as.Date(d) == as.Date("2020-05-19")) {
+    diff = 1
   } else {
     diff = NA
   }
@@ -328,8 +371,8 @@ for (d in list_of_its_dates) {
 
 ## Running Models
 - January 20th: No Differene
-- March 11th: Lag 2 Obesity
-- May 19th: No Difference
+- March 11th: Lag 3 Obesity
+- May 19th: Lag 1 Obesity
 - October 2nd: No Difference
 ```{r}
 # January 20th
@@ -337,7 +380,7 @@ for (df in dfs_posts) {
   print(df)
   arima_its(as.Date("2020-01-20"),
             get(df),
-            pulse = TRUE)
+            ramp = TRUE)
 }
 
 # March 11th
@@ -346,21 +389,28 @@ for (df in dfs_posts) {
   if (df == "obesity_count_per_day_instagram") {
     arima_its(as.Date("2020-03-11"),
               get(df), 
-              difference = 2, 
-              pulse = TRUE)
+              difference = 3, 
+              step = TRUE)
   } else {
     arima_its(as.Date("2020-03-11"),
               get(df), 
-              pulse = TRUE)
+              step = TRUE)
   }
 }
 
 # May 19th
 for (df in dfs_posts) {
   print(df)
-  arima_its(as.Date("2020-05-19"),
-            get(df),
-            pulse = TRUE)
+  if (df == "obesity_count_per_day_instagram") {
+    arima_its(as.Date("2020-05-19"),
+              get(df), 
+              difference = 1, 
+              pulse = TRUE)
+  } else {
+    arima_its(as.Date("2020-05-19"),
+              get(df), 
+              pulse = TRUE)
+  }
 }
 
 # October 2nd
@@ -373,18 +423,18 @@ for (df in dfs_posts) {
 ```
 
 ## Repeat with fixed p,q
-January 20th: p = 0, q = 1
-March 11th: p = 4, q = 0
-May 19th: p = 0, q = 0
-October 2nd: p = 3, q = 0
+January 20th: p = 5, q = 0
+March 11th: p = 4, q = 2
+May 19th: p = 5, q = 0
+October 2nd: p = 0, q = 1
 ```{r}
 # January 20th
 for (df in dfs_posts) {
   print(df)
   arima_its_fixed_pq(as.Date("2020-01-20"),
             get(df),
-            pulse = TRUE,
-            p = 0, q = 1)
+            ramp = TRUE,
+            p = 5, q = 0)
 }
 
 # March 11th
@@ -393,24 +443,30 @@ for (df in dfs_posts) {
   if (df == "obesity_count_per_day_instagram") {
     arima_its_fixed_pq(as.Date("2020-03-11"),
               get(df), 
-              difference = 2, 
-              pulse = TRUE,
-              p = 4, q = 0)
+              difference = 3, 
+              step = TRUE,
+              p = 4, q = 2)
   } else {
     arima_its_fixed_pq(as.Date("2020-03-11"),
               get(df), 
-              pulse = TRUE,
-              p = 4, q = 0)
+              step = TRUE,
+              p = 4, q = 2)
   }
 }
 
 # May 19th
 for (df in dfs_posts) {
   print(df)
+  if (df == "obesity_count_per_day_instagram") {
+    diff = 1
+  } else {
+    diff = NA
+  }
   arima_its_fixed_pq(as.Date("2020-05-19"),
             get(df),
             pulse = TRUE,
-            p = 0, q = 0)
+            p = 5, q = 0, 
+            difference = diff)
 }
 
 # October 2nd
@@ -419,7 +475,7 @@ for (df in dfs_posts) {
     arima_its_fixed_pq(as.Date("2020-10-02"),
               get(df),
               pulse = TRUE,
-              p = 3, q = 0)
+              p = 0, q = 1)
 }
 ```
 
@@ -451,6 +507,46 @@ clarinet_interaction_per_day <- clarinet_instagram %>%
 
 all_interactions_per_day <- rbind(obesity_interaction_per_day, headaches_interaction_per_day, clarinet_interaction_per_day)
 
+```
+## Plotting
+```{r}
+obesity_interaction_per_day %>%
+  dplyr::filter(post_created_date >= as.Date("2020-01-06") &
+           post_created_date <= as.Date("2020-10-16")) %>%
+  dplyr::mutate(color_plot = dplyr::case_when(
+    post_created_date >= as.Date("2020-01-20") - 14 &
+      post_created_date <= as.Date("2020-01-20") + 14 ~ "First US Case: Jan. 6 - Feb. 3",
+    post_created_date >= as.Date("2020-03-11") - 14 &
+      post_created_date <= as.Date("2020-03-11") + 14 ~ "COVID-19 Pandemic: Feb. 26 - Mar. 25",
+    post_created_date >= as.Date("2020-05-19") - 14 &
+      post_created_date <= as.Date("2020-05-19") + 14 ~ "Obesity + COVID-19: May 5 - June 2",
+    post_created_date >= as.Date("2020-10-02") - 14 &
+      post_created_date <= as.Date("2020-10-02") + 14 ~ "Trump + COVID-19: Sept. 18 - Oct. 16",
+    TRUE ~ ""),
+    color_plot = relevel(as.factor(color_plot), ref = "First US Case: Jan. 6 - Feb. 3")) %>%
+  filter(color_plot != "") %>%
+  ggplot(aes(x = post_created_date,
+             y = interactions_per_day,
+             color = color_plot,
+             group = color_plot)) +
+  geom_line(size = 0.75) +
+  geom_vline(xintercept = c(as.Date("2020-01-20"), as.Date("2020-03-11"),  as.Date("2020-05-19"), as.Date("2020-10-02")),
+             linetype = "dashed") + 
+  theme_classic() +
+  facet_wrap(~color_plot, scales = "free_x") +
+  scale_color_manual(values = c("#4E79A7",
+                                "#F28E2B",
+                                "#B07AA1",
+                                "#FF9DA7")) +
+  scale_y_continuous(label = comma) + 
+  labs(x = "Date",
+       y = "Interactions per Day",
+       title = "Distribution of Interactions per Day Around Major News Stories - Instagram") +
+  theme(legend.position = "none")
+setwd("~/Documents/dartmouth/research/aim3_facebook_covid19_obesity/figures")
+ggsave("220403_interactions_per_day_instagram_facet.tiff",
+       width = 7.25, 
+       height = 4.51)
 ```
 
 ## Checking for Differencing Need
@@ -529,7 +625,7 @@ for (df in dfs_posts) {
     arima_its(as.Date("2020-01-20"),
               get(df),
               post_or_interaction = "interactions", 
-              ramp = TRUE)
+              step = TRUE)
 }
 
 # March 11th
@@ -547,7 +643,7 @@ for (df in dfs_posts) {
   arima_its(as.Date("2020-05-19"), 
             get(df),
             post_or_interaction = "interactions", 
-            pulse = TRUE, step = TRUE)
+            pulse = TRUE)
 }
 
 # October 2nd
@@ -561,10 +657,10 @@ for (df in dfs_posts) {
 ```
 
 ## Repeating with fixed p q
-January 20th: p = 0, q = 0
-March 11th: p = 0, q = 0
+January 20th: p = 1, q = 0
+March 11th: p = 0, q = 1
 May 19th: p = 0, q = 0
-October 2nd: p = 2, q = 0
+October 2nd: p = 0, q = 0
 No differencing
 ```{r}
 # January 20th
@@ -573,8 +669,8 @@ for (df in dfs_posts) {
     arima_its_fixed_pq(as.Date("2020-01-20"),
               get(df),
               post_or_interaction = "interactions", 
-              ramp = TRUE,
-              p = 0, q = 0)
+              step = TRUE,
+              p = 1, q = 0)
 }
 
 # March 11th
@@ -584,7 +680,7 @@ for (df in dfs_posts) {
             get(df), 
             post_or_interaction = "interactions", 
             ramp = TRUE,
-            p = 0, q = 0)
+            p = 0, q = 1)
 }
 
 # May 19th
@@ -593,7 +689,7 @@ for (df in dfs_posts) {
   arima_its_fixed_pq(as.Date("2020-05-19"), 
             get(df),
             post_or_interaction = "interactions", 
-            pulse = TRUE, step = TRUE,
+            pulse = TRUE,
             p = 0, q = 0)
 }
 
@@ -604,7 +700,7 @@ for (df in dfs_posts) {
               get(df),
               post_or_interaction = "interactions", 
               pulse = TRUE,
-              p = 2, q = 0)
+              p = 0, q = 0)
 }
 ```
 

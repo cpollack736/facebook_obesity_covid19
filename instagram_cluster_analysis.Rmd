@@ -25,7 +25,7 @@ library(tidytext)
 # Data
 ```{r}
 setwd("~/Documents/dartmouth/research/aim3_facebook_covid19_obesity/data")
-obesity_topics <- fread("220304_obesity_with_topics_instagram.csv") %>%
+obesity_topics <- fread("220331_obesity_with_topics_instagram.csv") %>%
   clean_names()
 
 ```
@@ -117,13 +117,13 @@ arima_its <- function(its_date,
 
 # Number of Posts per Topic
 ```{r}
-nrow(obesity_topics)
+nrow(obesity_topics) #18,129
 View(obesity_topics %>%
   group_by(topics) %>%
   count())
 
 obesity_topics %<>%
-  filter(topics >= 0 & topics <= 14 & !(topics %in% c(1, 2, 3, 10, 11))) #17,907 posts
+  dplyr::filter(topics >= 0 & topics <= 10 & topics != 2) #17,907 posts
 ```
 
 # Number of Posts per Topic
@@ -248,30 +248,29 @@ obesity_topics %>%
   group_by(topic_renamed, date_date) %>%
   summarise(count_per_day = n()) %>%
   mutate(topic_renamed = factor(topic_renamed,
-                                    levels = c("Topic: 0", "Topic: 4", "Topic: 5", "Topic: 6", "Topic: 7", "Topic: 8", "Topic: 9", "Topic: 12", "Topic: 13", "Topic: 14")),
+                                    levels = c("Topic: 0", "Topic: 1", "Topic: 3", "Topic: 4", "Topic: 5", "Topic: 6", "Topic: 7", "Topic: 8", "Topic: 9", "Topic: 10")),
          topics_facet = case_when(
            topic_renamed == "Topic: 0" ~ "Weight Loss Stories",
-           topic_renamed == "Topic: 4" ~ "Childhood Obesity",
-           topic_renamed == "Topic: 5" ~ "Bariatric Surgery",
-           topic_renamed == "Topic: 6" ~ "Sugar",
-           topic_renamed == "Topic: 7" ~ "COVID-19",
-           topic_renamed == "Topic: 8" ~ "Natural Supplements",
-           topic_renamed == "Topic: 9" ~ "Veganism",
-           topic_renamed == "Topic: 12" ~ "Weight Loss Program",
-           topic_renamed == "Topic: 13" ~ "Sleep",
-           topic_renamed == "Topic: 14" ~ "Fruits and Vegetables"
-         )) %>%
+           topic_renamed == "Topic: 1" ~ "COVID-19",
+           topic_renamed == "Topic: 3" ~ "Keto Diet",
+           topic_renamed == "Topic: 4" ~ "Weight Loss Program",
+           topic_renamed == "Topic: 5" ~ "Calories",
+           topic_renamed == "Topic: 6" ~ "Bariatric Surgery",
+           topic_renamed == "Topic: 7" ~ "Sugar",
+           topic_renamed == "Topic: 8" ~ "Response to UK Gov. Policy",
+           topic_renamed == "Topic: 9" ~ "Childhood Obesity",
+           topic_renamed == "Topic: 10" ~ "Sleep")) %>%
   filter(date_date >= as.Date("2020-01-06"),
          date_date <= as.Date("2020-10-16")) %>%
   ggplot(aes(x = date_date,
              y = count_per_day,
              color = topics_facet)) +
-  geom_line(size = 0.5) +
   geom_vline(xintercept = c(as.Date("2020-01-20"),
                             as.Date("2020-03-11"),
                             as.Date("2020-05-19"),
                             as.Date("2020-10-02")),
              linetype = "dashed") + 
+  geom_line(size = 0.5) +
   facet_wrap(~topics_facet) + 
   scale_color_manual(values = c("#9E0142",
                                 "#D53E4F",
@@ -289,7 +288,7 @@ obesity_topics %>%
        y = "Count",
        title = "Number of Posts per Topic Per Day - Instagram")
 setwd("~/Documents/dartmouth/research/aim3_facebook_covid19_obesity/figures")
-ggsave("220316_topics_per_day_facet_instagram.tiff",
+ggsave("220412_topics_per_day_facet_instagram.tiff",
        width = 7.25, 
        height = 4.51)
 ```
@@ -322,6 +321,82 @@ View(obesity_topics %>%
             quantile(value, 0.75, na.rm = TRUE)))
 ```
 
+# Topic Distribution Around Key Dates
+```{r}
+topic_distribution_jan <- obesity_topics %>%
+  filter(post_created_date <= as.Date("2020-01-20") + 14) %>%
+  group_by(topic_renamed) %>%
+  count() %>%
+  mutate(date = "Jan. 6 - Feb. 3, 2020")
+
+topic_distribution_mar <- obesity_topics %>%
+  filter(post_created_date <= as.Date("2020-03-11") + 14 &
+           post_created_date >= as.Date("2020-03-11") - 14) %>%
+  group_by(topic_renamed) %>%
+  count() %>%
+  mutate(date = "Feb. 26 - Mar. 25, 2020")
+
+topic_distribution_may <- obesity_topics %>%
+  filter(post_created_date <= as.Date("2020-05-19") + 14 &
+           post_created_date >= as.Date("2020-05-19") - 14) %>%
+  group_by(topic_renamed) %>%
+  count() %>%
+  mutate(date = "May 5 - June 2, 2020")
+
+topic_distribution_oct <- obesity_topics %>%
+  filter(post_created_date <= as.Date("2020-10-02") + 14 &
+           post_created_date >= as.Date("2020-10-02") - 14) %>%
+  group_by(topic_renamed) %>%
+  count() %>%
+  mutate(date = "Sept. 18 - Oct. 16, 2020")
+
+topic_distribution <- rbind(topic_distribution_jan, topic_distribution_mar, topic_distribution_may, topic_distribution_oct)
+
+topic_distribution %>%
+  arrange(desc(n)) %>%
+  mutate(topic_renamed = factor(topic_renamed,
+                                    levels = c("Topic: 0", "Topic: 1", "Topic: 3", "Topic: 4", "Topic: 5", "Topic: 6", "Topic: 7", "Topic: 8", "Topic: 9", "Topic: 10")),
+         topics_facet = case_when(
+           topic_renamed == "Topic: 0" ~ "Weight Loss Stories",
+           topic_renamed == "Topic: 1" ~ "COVID-19",
+           topic_renamed == "Topic: 3" ~ "Keto Diet",
+           topic_renamed == "Topic: 4" ~ "Weight Loss Program",
+           topic_renamed == "Topic: 5" ~ "Calories",
+           topic_renamed == "Topic: 6" ~ "Bariatric Surgery",
+           topic_renamed == "Topic: 7" ~ "Sugar",
+           topic_renamed == "Topic: 8" ~ "Response to UK Gov. Policy",
+           topic_renamed == "Topic: 9" ~ "Childhood Obesity",
+           topic_renamed == "Topic: 10" ~ "Sleep"),
+         date = relevel(as.factor(date), ref = "Jan. 6 - Feb. 3, 2020")) %>%
+  ggplot(aes(x = n,
+             y = reorder_within(topics_facet,
+                                n,
+                                date), 
+             fill = topics_facet)) +
+  geom_bar(stat = "identity", color = "black") +
+  facet_wrap(~date, scales = "free_y") +
+  theme_classic() + 
+  scale_y_reordered() +
+  scale_fill_manual(values = c("#9E0142",
+                                "#D53E4F",
+                                "#F46D43",
+                                "#FDAE61",
+                                "#FEE08B",
+                                "#ABDDA4", 
+                                "#66C2A5",
+                                "#3288BD",
+                                "#5E4FA2",
+                                "grey")) +
+  theme(legend.position = "none") +
+  labs(x = "Count",
+       y = "Topic",
+       title = "Distribution of Posts Around Each Date of Interest")
+setwd("~/Documents/dartmouth/research/aim3_facebook_covid19_obesity/figures")
+ggsave("220330_topics_per_time_period_aggregate.tiff",
+       width = 7.25, 
+       height = 4.51)
+```
+
 # Evaluating Number of LDA Clusters Over Time
 ## Running ARIMA
 ### Checking if Stationary
@@ -337,14 +412,14 @@ topics_per_day <- obesity_date_restricted %>%
   filter(!is.na(post_created_date))
 
 for (i in min(topics_per_day$topics):max(topics_per_day$topics)) {
-  if (i %in% c(1, 2, 3, 10, 11)) {
+  if (i == 2) {
     next
   }
   else {assign(paste0("topics_per_day_", i), topics_per_day %>%
            filter(topics == i))}
 }
 
-dfs <- c("topics_per_day_0", "topics_per_day_4", "topics_per_day_5", "topics_per_day_6", "topics_per_day_7", "topics_per_day_8", "topics_per_day_9") #Not running ARIMA on 12, 13, 14 -- too few posts
+dfs <- c("topics_per_day_0", "topics_per_day_1", "topics_per_day_3", "topics_per_day_4", "topics_per_day_5", "topics_per_day_6", "topics_per_day_7", "topics_per_day_8", "topics_per_day_9", "topics_per_day_10") #Not running ARIMA on 12, 13, 14 -- too few posts
 ```
 
 ### Checking Which Transfer Functions to Use
@@ -352,8 +427,10 @@ dfs <- c("topics_per_day_0", "topics_per_day_4", "topics_per_day_5", "topics_per
 aic_table <- NULL
 for (df in dfs) {
   for (d in list_of_its_dates) {
-    if (d == 18281 & df == "topics_per_day_7" |
-        d == 18332 & df %in% c("topics_per_day_7", "topics_per_day_9")) {
+    if (d == 18281 & df %in% c("topics_per_day_1", "topics_per_day_8") |
+        d == 18332 & df %in% c("topics_per_day_4", "topics_per_day_8") |
+        d == 18401 & df %in% c("topics_per_day_4", "topics_per_day_10") |
+        d == 18537 & df %in% c("topics_per_day_4", "topics_per_day_8")) {
       next
     }
     print(as.Date(d))
@@ -406,12 +483,18 @@ for (df in dfs) {
   p = FALSE
   r = FALSE
   s = FALSE
-  if (df %in% c("topics_per_day_4", "topics_per_day_6", "topics_per_day_8", "topics_per_day_9")) {
+  if (df %in% c("topics_per_day_3", "topics_per_day_7")) {
     p = TRUE
   } 
-  if (df %in% c("topics_per_day_0", "topics_per_day_4", "topics_per_day_5")) {
+  if (df %in% c("topics_per_day_0", "topics_per_day_5", "topics_per_day_6", "topics_per_day_9", "topics_per_day_10")) {
+    s = TRUE
+  } 
+  if (df %in% c("topics_per_day_4")) {
     r = TRUE
   } 
+  if (df %in% c("topics_per_day_1", "topics_per_day_8")) {
+    next
+  }
   arima_its(as.Date("2020-01-20"),
             get(df),
             pulse = p,
@@ -425,14 +508,17 @@ for (df in dfs) {
   p = FALSE
   r = FALSE
   s = FALSE
-  if (df %in% c("topics_per_day_8")) {
+  if (df %in% c("topics_per_day_1", "topics_per_day_5")) {
     p = TRUE
-  }
-  if (df %in% c("topics_per_day_0", "topics_per_day_4", "topics_per_day_5")) {
+  } 
+  if (df %in% c("topics_per_day_6", "topics_per_day_9", "topics_per_day_10")) {
     s = TRUE
-  }
-  if (df %in% c("topics_per_day_6")) {
+  } 
+  if (df %in% c("topics_per_day_0", "topics_per_day_3", "topics_per_day_7")) {
     r = TRUE
+  } 
+  if (df %in% c("topics_per_day_4", "topics_per_day_8")) {
+    next
   }
   arima_its(as.Date("2020-03-11"),
             get(df),
@@ -447,15 +533,18 @@ for (df in dfs) {
   p = FALSE
   r = FALSE
   s = FALSE
-  if (df %in% c("topics_per_day_6", "topics_per_day_8", "topics_per_day_9")) {
+  if (df %in% c("topics_per_day_6", "topics_per_day_7")) {
     p = TRUE
-  }
-  if (df %in% c("topics_per_day_0", "topics_per_day_5")) {
+  } 
+  if (df %in% c("topics_per_day_3", "topics_per_day_5")) {
     s = TRUE
-  }
-  if (df %in% c("topics_per_day_4", "topics_per_day_7")) {
+  } 
+  if (df %in% c("topics_per_day_0", "topics_per_day_1", "topics_per_day_5", "topics_per_day_8", "topics_per_day_9")) {
     r = TRUE
-  }
+  } 
+  if (df %in% c("topics_per_day_4", "topics_per_day_10")) {
+    next
+  }  
   arima_its(as.Date("2020-05-19"),
             get(df),
             pulse = p,
@@ -469,15 +558,18 @@ for (df in dfs) {
   p = FALSE
   r = FALSE
   s = FALSE
-  if (df %in% c("topics_per_day_0", "topics_per_day_5")) {
+  if (df %in% c("topics_per_day_7", "topics_per_day_9")) {
     p = TRUE
-  }
-  if (df %in% c("topics_per_day_4")) {
+  } 
+  if (df %in% c("topics_per_day_0", "topics_per_day_3", "topics_per_day_5", "topics_per_day_9", "topics_per_day_10")) {
     s = TRUE
-  }
-  if (df %in% c("topics_per_day_5", "topics_per_day_6", "topics_per_day_7", "topics_per_day_8", "topics_per_day_9")) {
+  } 
+  if (df %in% c("topics_per_day_1", "topics_per_day_3", "topics_per_day_6")) {
     r = TRUE
-  }
+  } 
+  if (df %in% c("topics_per_day_4", "topics_per_day_8")) {
+    next
+  }  
   arima_its(as.Date("2020-10-02"),
             get(df),
             pulse = p,
